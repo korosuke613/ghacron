@@ -1,0 +1,11 @@
+name: Test Noop
+
+on:
+  # ghacron: "45 1 * * 1"  # Note: TZ=Asia/Tokyo
+  workflow_dispatch:
+
+jobs:
+  noop:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "ghacron dispatched at $(date -u)"
