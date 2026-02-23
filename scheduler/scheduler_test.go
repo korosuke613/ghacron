@@ -13,19 +13,16 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-// mockClient テスト用モッククライアント
+// mockClient is a mock GitHub client for testing.
 type mockClient struct {
-	// GetVariable の戻り値制御
 	getVarValue string
 	getVarErr   error
 	getVarCalls int
 
-	// SetVariable の戻り値制御
 	setVarErr   error
 	setVarCalls int
-	setVarArgs  []setVarCall // 呼び出し引数記録
+	setVarArgs  []setVarCall
 
-	// DispatchWorkflow の戻り値制御
 	dispatchErr   error
 	dispatchCalls int
 
@@ -70,7 +67,6 @@ func (m *mockClient) GetFileContent(_ context.Context, _, _, _, _ string) (strin
 	return "", nil
 }
 
-// newTestScheduler テスト用Schedulerを構築（cronやreconcilerは不要）
 func newTestScheduler(client GitHubClient, cfg *config.ReconcileConfig) *Scheduler {
 	return &Scheduler{
 		client:         client,
@@ -97,7 +93,6 @@ func defaultConfig() *config.ReconcileConfig {
 	}
 }
 
-// TestHandler_NormalDispatch 正常系: dispatch成功
 func TestHandler_NormalDispatch(t *testing.T) {
 	mock := &mockClient{}
 	s := newTestScheduler(mock, defaultConfig())
@@ -106,15 +101,13 @@ func TestHandler_NormalDispatch(t *testing.T) {
 	handler()
 
 	if mock.dispatchCalls != 1 {
-		t.Errorf("DispatchWorkflow呼び出し回数: got %d, want 1", mock.dispatchCalls)
+		t.Errorf("DispatchWorkflow call count: got %d, want 1", mock.dispatchCalls)
 	}
-	// SetVariable: 事前保存の1回のみ（ロールバックなし）
 	if mock.setVarCalls != 1 {
-		t.Errorf("SetVariable呼び出し回数: got %d, want 1", mock.setVarCalls)
+		t.Errorf("SetVariable call count: got %d, want 1", mock.setVarCalls)
 	}
 }
 
-// TestHandler_DispatchFailure_Rollback dispatch失敗でゼロ値にロールバック
 func TestHandler_DispatchFailure_Rollback(t *testing.T) {
 	mock := &mockClient{
 		dispatchErr: errors.New("API error"),
@@ -125,23 +118,22 @@ func TestHandler_DispatchFailure_Rollback(t *testing.T) {
 	handler()
 
 	if mock.dispatchCalls != 1 {
-		t.Errorf("DispatchWorkflow呼び出し回数: got %d, want 1", mock.dispatchCalls)
+		t.Errorf("DispatchWorkflow call count: got %d, want 1", mock.dispatchCalls)
 	}
-	// SetVariable: 事前保存 + ロールバック = 2回
+	// SetVariable: pre-save + rollback = 2 calls
 	if mock.setVarCalls != 2 {
-		t.Errorf("SetVariable呼び出し回数: got %d, want 2", mock.setVarCalls)
+		t.Errorf("SetVariable call count: got %d, want 2", mock.setVarCalls)
 	}
-	// ロールバック時の値はゼロ値time（GetVariableが空文字を返すため）
+	// Rollback value should be zero time (GetVariable returns empty string)
 	if len(mock.setVarArgs) >= 2 {
 		rollbackValue := mock.setVarArgs[1].value
 		zeroTime := time.Time{}.Format(time.RFC3339)
 		if rollbackValue != zeroTime {
-			t.Errorf("ロールバック値: got %q, want %q (ゼロ値)", rollbackValue, zeroTime)
+			t.Errorf("rollback value: got %q, want %q (zero time)", rollbackValue, zeroTime)
 		}
 	}
 }
 
-// TestHandler_DispatchFailure_RollbackToPrevious 前回dispatch時刻が存在する場合のロールバック
 func TestHandler_DispatchFailure_RollbackToPrevious(t *testing.T) {
 	prevTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 	mock := &mockClient{
@@ -156,26 +148,25 @@ func TestHandler_DispatchFailure_RollbackToPrevious(t *testing.T) {
 
 	handler()
 
-	// SetVariable: 事前保存 + ロールバック = 2回
+	// SetVariable: pre-save + rollback = 2 calls
 	if mock.setVarCalls != 2 {
-		t.Fatalf("SetVariable呼び出し回数: got %d, want 2", mock.setVarCalls)
+		t.Fatalf("SetVariable call count: got %d, want 2", mock.setVarCalls)
 	}
-	// ロールバック時の値は前回dispatch時刻
+	// Rollback value should be previous dispatch time
 	rollbackValue := mock.setVarArgs[1].value
 	expectedValue := prevTime.Format(time.RFC3339)
 	if rollbackValue != expectedValue {
-		t.Errorf("ロールバック値: got %q, want %q", rollbackValue, expectedValue)
+		t.Errorf("rollback value: got %q, want %q", rollbackValue, expectedValue)
 	}
 }
 
-// TestHandler_DuplicateGuard_Blocks ガード期間内はdispatchされない
 func TestHandler_DuplicateGuard_Blocks(t *testing.T) {
 	recentTime := time.Now().Add(-10 * time.Second)
 	mock := &mockClient{
 		getVarValue: recentTime.Format(time.RFC3339),
 	}
 	cfg := &config.ReconcileConfig{
-		DuplicateGuardSeconds: 60, // 60秒ガード → 10秒前のdispatchはブロック
+		DuplicateGuardSeconds: 60, // 60s guard > 10s ago => blocked
 	}
 	s := newTestScheduler(mock, cfg)
 	handler := s.createJobHandler(testAnnotation())
@@ -183,14 +174,13 @@ func TestHandler_DuplicateGuard_Blocks(t *testing.T) {
 	handler()
 
 	if mock.setVarCalls != 0 {
-		t.Errorf("SetVariable呼び出し回数: got %d, want 0（ガードでブロックされるべき）", mock.setVarCalls)
+		t.Errorf("SetVariable call count: got %d, want 0 (should be blocked by guard)", mock.setVarCalls)
 	}
 	if mock.dispatchCalls != 0 {
-		t.Errorf("DispatchWorkflow呼び出し回数: got %d, want 0（ガードでブロックされるべき）", mock.dispatchCalls)
+		t.Errorf("DispatchWorkflow call count: got %d, want 0 (should be blocked by guard)", mock.dispatchCalls)
 	}
 }
 
-// TestHandler_DryRun DryRunモードではdispatchされない
 func TestHandler_DryRun(t *testing.T) {
 	mock := &mockClient{}
 	cfg := &config.ReconcileConfig{
@@ -203,14 +193,13 @@ func TestHandler_DryRun(t *testing.T) {
 	handler()
 
 	if mock.setVarCalls != 0 {
-		t.Errorf("SetVariable呼び出し回数: got %d, want 0（DryRunでスキップされるべき）", mock.setVarCalls)
+		t.Errorf("SetVariable call count: got %d, want 0 (should be skipped in dry-run)", mock.setVarCalls)
 	}
 	if mock.dispatchCalls != 0 {
-		t.Errorf("DispatchWorkflow呼び出し回数: got %d, want 0（DryRunでスキップされるべき）", mock.dispatchCalls)
+		t.Errorf("DispatchWorkflow call count: got %d, want 0 (should be skipped in dry-run)", mock.dispatchCalls)
 	}
 }
 
-// TestHandler_GetTimeFails_ProceedsDispatch GetVariable失敗でもdispatchは実行（fail-open）
 func TestHandler_GetTimeFails_ProceedsDispatch(t *testing.T) {
 	mock := &mockClient{
 		getVarErr: errors.New("variable fetch error"),
@@ -221,14 +210,13 @@ func TestHandler_GetTimeFails_ProceedsDispatch(t *testing.T) {
 	handler()
 
 	if mock.dispatchCalls != 1 {
-		t.Errorf("DispatchWorkflow呼び出し回数: got %d, want 1（fail-openで実行されるべき）", mock.dispatchCalls)
+		t.Errorf("DispatchWorkflow call count: got %d, want 1 (should proceed as fail-open)", mock.dispatchCalls)
 	}
 	if mock.setVarCalls != 1 {
-		t.Errorf("SetVariable呼び出し回数: got %d, want 1（事前保存）", mock.setVarCalls)
+		t.Errorf("SetVariable call count: got %d, want 1 (pre-save)", mock.setVarCalls)
 	}
 }
 
-// TestHandler_GetTimeFails_DispatchFails_NoRollback GetVariable失敗+dispatch失敗時はロールバックをスキップ
 func TestHandler_GetTimeFails_DispatchFails_NoRollback(t *testing.T) {
 	mock := &mockClient{
 		getVarErr:   errors.New("variable fetch error"),
@@ -239,13 +227,12 @@ func TestHandler_GetTimeFails_DispatchFails_NoRollback(t *testing.T) {
 
 	handler()
 
-	// SetVariable: 事前保存の1回のみ（ロールバックはスキップされるべき）
+	// SetVariable: only pre-save (rollback should be skipped)
 	if mock.setVarCalls != 1 {
-		t.Errorf("SetVariable呼び出し回数: got %d, want 1（ロールバックはスキップされるべき）", mock.setVarCalls)
+		t.Errorf("SetVariable call count: got %d, want 1 (rollback should be skipped)", mock.setVarCalls)
 	}
 }
 
-// TestHandler_SetTimeFails_SkipsDispatch SetVariable失敗時はdispatchをスキップ
 func TestHandler_SetTimeFails_SkipsDispatch(t *testing.T) {
 	mock := &mockClient{
 		setVarErr: errors.New("variable set error"),
@@ -256,44 +243,41 @@ func TestHandler_SetTimeFails_SkipsDispatch(t *testing.T) {
 	handler()
 
 	if mock.dispatchCalls != 0 {
-		t.Errorf("DispatchWorkflow呼び出し回数: got %d, want 0（SetVar失敗でスキップされるべき）", mock.dispatchCalls)
+		t.Errorf("DispatchWorkflow call count: got %d, want 0 (should be skipped on SetVar failure)", mock.dispatchCalls)
 	}
 	if mock.setVarCalls != 1 {
-		t.Errorf("SetVariable呼び出し回数: got %d, want 1（事前保存試行）", mock.setVarCalls)
+		t.Errorf("SetVariable call count: got %d, want 1 (pre-save attempt)", mock.setVarCalls)
 	}
 }
 
-// TestHandler_RollbackFailure dispatch失敗+ロールバック失敗でもpanicしない
 func TestHandler_RollbackFailure(t *testing.T) {
-	// setVarErrを動的に制御するためカスタムモックを使う
 	dynamicMock := &dynamicMockClient{
 		mockClient: mockClient{
 			dispatchErr: errors.New("dispatch error"),
 		},
 	}
 	dynamicMock.setVarFunc = func() error {
-		// setVarCallsはSetVariable内でインクリメント済み
 		if dynamicMock.setVarCalls == 1 {
-			return nil // 事前保存は成功
+			return nil // pre-save succeeds
 		}
-		return errors.New("rollback error") // ロールバックは失敗
+		return errors.New("rollback error") // rollback fails
 	}
 
 	s := newTestScheduler(dynamicMock, defaultConfig())
 	handler := s.createJobHandler(testAnnotation())
 
-	// panicしないことを確認
+	// should not panic
 	handler()
 
 	if dynamicMock.dispatchCalls != 1 {
-		t.Errorf("DispatchWorkflow呼び出し回数: got %d, want 1", dynamicMock.dispatchCalls)
+		t.Errorf("DispatchWorkflow call count: got %d, want 1", dynamicMock.dispatchCalls)
 	}
 	if dynamicMock.setVarCalls != 2 {
-		t.Errorf("SetVariable呼び出し回数: got %d, want 2（事前保存+ロールバック試行）", dynamicMock.setVarCalls)
+		t.Errorf("SetVariable call count: got %d, want 2 (pre-save + rollback attempt)", dynamicMock.setVarCalls)
 	}
 }
 
-// dynamicMockClient SetVariableの挙動を動的に制御するモック
+// dynamicMockClient allows dynamic control of SetVariable behavior.
 type dynamicMockClient struct {
 	mockClient
 	setVarFunc func() error

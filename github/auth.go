@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-// Transport GitHub App認証付きHTTP RoundTripper
+// Transport is an http.RoundTripper that authenticates using a GitHub App installation token.
 type Transport struct {
 	appID      int64
 	privateKey *rsa.PrivateKey
@@ -27,24 +27,23 @@ type Transport struct {
 	tokenExpiration time.Time
 }
 
-// NewTransport 新しいTransportを作成
+// NewTransport creates a new Transport from an App ID and PEM-encoded private key.
 func NewTransport(appID int64, privateKeyPEM []byte) (*Transport, error) {
 	block, _ := pem.Decode(privateKeyPEM)
 	if block == nil {
-		return nil, fmt.Errorf("PEM秘密鍵のデコードに失敗")
+		return nil, fmt.Errorf("failed to decode PEM private key")
 	}
 
 	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
-		// PKCS8 形式も試行
 		parsed, err2 := x509.ParsePKCS8PrivateKey(block.Bytes)
 		if err2 != nil {
-			return nil, fmt.Errorf("秘密鍵のパースに失敗 (PKCS1: %v, PKCS8: %v)", err, err2)
+			return nil, fmt.Errorf("failed to parse private key (PKCS1: %v, PKCS8: %v)", err, err2)
 		}
 		var ok bool
 		key, ok = parsed.(*rsa.PrivateKey)
 		if !ok {
-			return nil, fmt.Errorf("秘密鍵がRSAキーではありません")
+			return nil, fmt.Errorf("private key is not an RSA key")
 		}
 	}
 
@@ -55,11 +54,11 @@ func NewTransport(appID int64, privateKeyPEM []byte) (*Transport, error) {
 	}, nil
 }
 
-// RoundTrip HTTPリクエストにInstallation Tokenを付与して送信
+// RoundTrip adds an installation token to the request and sends it.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	token, err := t.getInstallationToken()
 	if err != nil {
-		return nil, fmt.Errorf("Installation Token取得に失敗: %w", err)
+		return nil, fmt.Errorf("failed to get installation token: %w", err)
 	}
 
 	req2 := req.Clone(req.Context())
@@ -69,17 +68,15 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(req2)
 }
 
-// getInstallationToken キャッシュ済みトークンを返す。期限切れなら再取得
+// getInstallationToken returns a cached token, refreshing if expired.
 func (t *Transport) getInstallationToken() (string, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	// トークンが有効期限の1分前以降ならリフレッシュ
 	if t.token != "" && time.Now().Before(t.tokenExpiration.Add(-1*time.Minute)) {
 		return t.token, nil
 	}
 
-	// Installation IDが未取得なら取得
 	if t.installationID == 0 {
 		id, err := t.fetchInstallationID()
 		if err != nil {
@@ -88,7 +85,6 @@ func (t *Transport) getInstallationToken() (string, error) {
 		t.installationID = id
 	}
 
-	// Installation Token を取得
 	token, expiration, err := t.fetchInstallationToken(t.installationID)
 	if err != nil {
 		return "", err
@@ -99,7 +95,7 @@ func (t *Transport) getInstallationToken() (string, error) {
 	return t.token, nil
 }
 
-// generateJWT GitHub App用JWTを生成（RS256）
+// generateJWT creates a JWT for GitHub App authentication (RS256).
 func (t *Transport) generateJWT() (string, error) {
 	now := time.Now()
 	header := map[string]string{
@@ -123,14 +119,14 @@ func (t *Transport) generateJWT() (string, error) {
 	hash := sha256.Sum256([]byte(signingInput))
 	sig, err := rsa.SignPKCS1v15(nil, t.privateKey, crypto.SHA256, hash[:])
 	if err != nil {
-		return "", fmt.Errorf("JWT署名に失敗: %w", err)
+		return "", fmt.Errorf("failed to sign JWT: %w", err)
 	}
 
 	sigB64 := base64.RawURLEncoding.EncodeToString(sig)
 	return signingInput + "." + sigB64, nil
 }
 
-// fetchInstallationID App JWTで最初のInstallation IDを取得
+// fetchInstallationID retrieves the first installation ID using the App JWT.
 func (t *Transport) fetchInstallationID() (int64, error) {
 	jwt, err := t.generateJWT()
 	if err != nil {
@@ -143,29 +139,29 @@ func (t *Transport) fetchInstallationID() (int64, error) {
 
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
-		return 0, fmt.Errorf("installations取得に失敗: %w", err)
+		return 0, fmt.Errorf("failed to get installations: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return 0, fmt.Errorf("installations取得に失敗 (status=%d): %s", resp.StatusCode, body)
+		return 0, fmt.Errorf("failed to get installations (status=%d): %s", resp.StatusCode, body)
 	}
 
 	var installations []struct {
 		ID int64 `json:"id"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&installations); err != nil {
-		return 0, fmt.Errorf("installationsレスポンスのパースに失敗: %w", err)
+		return 0, fmt.Errorf("failed to parse installations response: %w", err)
 	}
 	if len(installations) == 0 {
-		return 0, fmt.Errorf("GitHub Appのインストールが見つかりません")
+		return 0, fmt.Errorf("no GitHub App installations found")
 	}
 
 	return installations[0].ID, nil
 }
 
-// fetchInstallationToken Installation Access Tokenを取得
+// fetchInstallationToken retrieves an installation access token.
 func (t *Transport) fetchInstallationToken(installationID int64) (string, time.Time, error) {
 	jwt, err := t.generateJWT()
 	if err != nil {
@@ -179,13 +175,13 @@ func (t *Transport) fetchInstallationToken(installationID int64) (string, time.T
 
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("access_tokens取得に失敗: %w", err)
+		return "", time.Time{}, fmt.Errorf("failed to get access token: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
-		return "", time.Time{}, fmt.Errorf("access_tokens取得に失敗 (status=%d): %s", resp.StatusCode, body)
+		return "", time.Time{}, fmt.Errorf("failed to get access token (status=%d): %s", resp.StatusCode, body)
 	}
 
 	var result struct {
@@ -193,7 +189,7 @@ func (t *Transport) fetchInstallationToken(installationID int64) (string, time.T
 		ExpiresAt time.Time `json:"expires_at"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", time.Time{}, fmt.Errorf("access_tokensレスポンスのパースに失敗: %w", err)
+		return "", time.Time{}, fmt.Errorf("failed to parse access token response: %w", err)
 	}
 
 	return result.Token, result.ExpiresAt, nil

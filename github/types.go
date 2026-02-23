@@ -1,15 +1,15 @@
 package github
 
-// CronAnnotation ワークフローファイルから抽出されたcronアノテーション
+// CronAnnotation represents a cron annotation extracted from a workflow file.
 type CronAnnotation struct {
-	Owner        string // リポジトリオーナー
-	Repo         string // リポジトリ名
-	WorkflowFile string // ワークフローファイル名（例: "build.yml"）
-	CronExpr     string // cron式（5フィールド標準形式）
-	Ref          string // デフォルトブランチ
+	Owner        string // repository owner
+	Repo         string // repository name
+	WorkflowFile string // workflow file name (e.g. "build.yml")
+	CronExpr     string // cron expression (5-field standard format)
+	Ref          string // default branch
 }
 
-// CronJobKey cronジョブの一意識別キー
+// CronJobKey uniquely identifies a cron job.
 type CronJobKey struct {
 	Owner        string
 	Repo         string
@@ -17,7 +17,7 @@ type CronJobKey struct {
 	CronExpr     string
 }
 
-// Key CronAnnotationからCronJobKeyを生成
+// Key generates a CronJobKey from a CronAnnotation.
 func (a *CronAnnotation) Key() CronJobKey {
 	return CronJobKey{
 		Owner:        a.Owner,
@@ -27,15 +27,15 @@ func (a *CronAnnotation) Key() CronJobKey {
 	}
 }
 
-// Repository GitHub Appインストール先リポジトリ情報
+// Repository represents a GitHub App installation repository.
 type Repository struct {
 	Owner         string
 	Name          string
 	DefaultBranch string
 }
 
-// WorkflowFile ワークフローファイル情報
+// WorkflowFile represents a workflow file in a repository.
 type WorkflowFile struct {
-	Name string // ファイル名（例: "build.yml"）
-	Path string // フルパス（例: ".github/workflows/build.yml"）
+	Name string // file name (e.g. "build.yml")
+	Path string // full path (e.g. ".github/workflows/build.yml")
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-// GitHubClient schedulerが使用するGitHub APIインターフェース
+// GitHubClient is the GitHub API interface used by the scheduler.
 type GitHubClient interface {
 	DispatchWorkflow(ctx context.Context, owner, repo, workflowFile, ref string) error
 	GetVariable(ctx context.Context, owner, repo, name string) (string, error)
@@ -23,7 +23,7 @@ type GitHubClient interface {
 	GetFileContent(ctx context.Context, owner, repo, path, ref string) (string, error)
 }
 
-// Scheduler cronジョブマネージャー
+// Scheduler manages cron jobs.
 type Scheduler struct {
 	client     GitHubClient
 	reconciler *Reconciler
@@ -35,9 +35,9 @@ type Scheduler struct {
 	lastReconcile  time.Time
 }
 
-// New 新しいスケジューラーを作成
+// New creates a new Scheduler.
 func New(client GitHubClient, cfg *config.ReconcileConfig, loc *time.Location) *Scheduler {
-	// 5フィールド標準cron（WithSecondsなし）
+	// 5-field standard cron (no WithSeconds)
 	c := cron.New(cron.WithLocation(loc))
 
 	s := &Scheduler{
@@ -49,31 +49,29 @@ func New(client GitHubClient, cfg *config.ReconcileConfig, loc *time.Location) *
 
 	s.reconciler = NewReconciler(client, s, cfg)
 
-	// cronスケジューラーを開始
 	c.Start()
 	slog.Info("cron scheduler started")
 
 	return s
 }
 
-// AddJob cronジョブを登録
+// AddJob registers a cron job.
 func (s *Scheduler) AddJob(annotation github.CronAnnotation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	key := annotation.Key()
 
-	// 既に登録済みならスキップ
+	// Skip if already registered
 	if _, exists := s.registeredJobs[key]; exists {
 		return nil
 	}
 
-	// ジョブハンドラー作成
 	handler := s.createJobHandler(annotation)
 
 	entryID, err := s.cron.AddFunc(annotation.CronExpr, handler)
 	if err != nil {
-		return fmt.Errorf("cronジョブの追加に失敗 (%s/%s/%s %q): %w",
+		return fmt.Errorf("failed to add cron job (%s/%s/%s %q): %w",
 			annotation.Owner, annotation.Repo, annotation.WorkflowFile, annotation.CronExpr, err)
 	}
 
@@ -88,7 +86,7 @@ func (s *Scheduler) AddJob(annotation github.CronAnnotation) error {
 	return nil
 }
 
-// RemoveJob cronジョブを削除
+// RemoveJob removes a cron job.
 func (s *Scheduler) RemoveJob(key github.CronJobKey) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -105,21 +103,21 @@ func (s *Scheduler) RemoveJob(key github.CronJobKey) {
 	}
 }
 
-// GetRegisteredJobCount 登録済みジョブ数を返す（StatusProvider インターフェース）
+// GetRegisteredJobCount returns the number of registered jobs (StatusProvider).
 func (s *Scheduler) GetRegisteredJobCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.registeredJobs)
 }
 
-// GetLastReconcileTime 最終Reconcile時刻を返す（StatusProvider インターフェース）
+// GetLastReconcileTime returns the last reconcile timestamp (StatusProvider).
 func (s *Scheduler) GetLastReconcileTime() time.Time {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.lastReconcile
 }
 
-// JobDetail ジョブの詳細情報
+// JobDetail holds detailed information about a registered job.
 type JobDetail struct {
 	Owner        string    `json:"owner"`
 	Repo         string    `json:"repo"`
@@ -128,7 +126,7 @@ type JobDetail struct {
 	NextRun      time.Time `json:"next_run"`
 }
 
-// GetJobDetails 登録済みジョブの詳細一覧を返す（StatusProvider インターフェース）
+// GetJobDetails returns details of all registered jobs (StatusProvider).
 func (s *Scheduler) GetJobDetails() []JobDetail {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -147,7 +145,7 @@ func (s *Scheduler) GetJobDetails() []JobDetail {
 	return details
 }
 
-// GetRegisteredKeys 登録済みジョブのキー一覧を返す
+// GetRegisteredKeys returns all registered job keys.
 func (s *Scheduler) GetRegisteredKeys() []github.CronJobKey {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -159,9 +157,9 @@ func (s *Scheduler) GetRegisteredKeys() []github.CronJobKey {
 	return keys
 }
 
-// RunReconcileLoop Reconciliationループを実行
+// RunReconcileLoop runs the reconciliation loop.
 func (s *Scheduler) RunReconcileLoop(ctx context.Context, interval time.Duration) {
-	// 初回は即座に実行
+	// Run immediately on startup
 	s.runReconcile(ctx)
 
 	ticker := time.NewTicker(interval)
@@ -196,14 +194,14 @@ func (s *Scheduler) runReconcile(ctx context.Context) {
 	)
 }
 
-// Stop スケジューラーを停止
+// Stop stops the scheduler.
 func (s *Scheduler) Stop() {
 	ctx := s.cron.Stop()
 	<-ctx.Done()
 	slog.Info("cron scheduler stopped")
 }
 
-// createJobHandler dispatch実行用のジョブハンドラーを作成
+// createJobHandler creates a job handler for dispatching workflows.
 func (s *Scheduler) createJobHandler(annotation github.CronAnnotation) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -211,9 +209,9 @@ func (s *Scheduler) createJobHandler(annotation github.CronAnnotation) func() {
 
 		stateManager := NewStateManager(s.client)
 
-		// 重複ガード
+		// Duplicate guard
 		lastDispatch, err := stateManager.GetLastDispatchTime(ctx, annotation)
-		canRollback := err == nil // 取得成功時のみロールバック可能
+		canRollback := err == nil // rollback only if previous time was retrieved
 		if err != nil {
 			slog.Error("failed to get last dispatch time",
 				"owner", annotation.Owner,
@@ -221,7 +219,7 @@ func (s *Scheduler) createJobHandler(annotation github.CronAnnotation) func() {
 				"workflow_file", annotation.WorkflowFile,
 				"error", err,
 			)
-			// 取得失敗時は安全側に倒してdispatchを実行
+			// Fail-open: proceed with dispatch on retrieval failure
 		} else if !lastDispatch.IsZero() {
 			elapsed := time.Since(lastDispatch)
 			guard := time.Duration(s.config.DuplicateGuardSeconds) * time.Second
@@ -237,7 +235,7 @@ func (s *Scheduler) createJobHandler(annotation github.CronAnnotation) func() {
 			}
 		}
 
-		// dry-run モード
+		// Dry-run mode
 		if s.config.DryRun {
 			slog.Info("[DRY-RUN] dispatch target",
 				"owner", annotation.Owner,
@@ -249,7 +247,7 @@ func (s *Scheduler) createJobHandler(annotation github.CronAnnotation) func() {
 			return
 		}
 
-		// dispatch時刻を事前に永続化（競合防止のため）
+		// Persist dispatch time before dispatching (to prevent races)
 		now := time.Now()
 		if err := stateManager.SetLastDispatchTime(ctx, annotation, now); err != nil {
 			slog.Error("failed to save dispatch time",
@@ -258,11 +256,11 @@ func (s *Scheduler) createJobHandler(annotation github.CronAnnotation) func() {
 				"workflow_file", annotation.WorkflowFile,
 				"error", err,
 			)
-			// 保存失敗時は重複の可能性があるためdispatchをスキップ
+			// Skip dispatch to avoid potential duplicates
 			return
 		}
 
-		// workflow_dispatch を発火
+		// Fire workflow_dispatch
 		if err := s.client.DispatchWorkflow(ctx, annotation.Owner, annotation.Repo,
 			annotation.WorkflowFile, annotation.Ref); err != nil {
 			slog.Error("dispatch failed",
@@ -271,7 +269,7 @@ func (s *Scheduler) createJobHandler(annotation github.CronAnnotation) func() {
 				"workflow_file", annotation.WorkflowFile,
 				"error", err,
 			)
-			// ファントム・ガード防止: 前回時刻の取得に成功していた場合のみロールバック
+			// Phantom guard prevention: rollback only if previous time was retrieved
 			if canRollback {
 				if rbErr := stateManager.SetLastDispatchTime(ctx, annotation, lastDispatch); rbErr != nil {
 					slog.Error("failed to rollback dispatch time",

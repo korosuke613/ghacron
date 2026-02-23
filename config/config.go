@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config 全体の設定構造
+// Config represents the entire application configuration.
 type Config struct {
 	GitHub    GitHubConfig    `yaml:"github"`
 	Reconcile ReconcileConfig `yaml:"reconcile"`
@@ -19,14 +19,14 @@ type Config struct {
 	WebAPI    WebAPIConfig    `yaml:"webapi"`
 }
 
-// GitHubConfig GitHub App設定
+// GitHubConfig holds GitHub App credentials.
 type GitHubConfig struct {
 	AppID          int64  `yaml:"app_id"`
 	PrivateKey     string `yaml:"private_key"`
 	PrivateKeyPath string `yaml:"private_key_path"`
 }
 
-// ReconcileConfig Reconciliation設定
+// ReconcileConfig holds reconciliation loop settings.
 type ReconcileConfig struct {
 	IntervalMinutes       int    `yaml:"interval_minutes"`
 	DuplicateGuardSeconds int    `yaml:"duplicate_guard_seconds"`
@@ -34,13 +34,13 @@ type ReconcileConfig struct {
 	Timezone              string `yaml:"timezone"`
 }
 
-// LogConfig ログ設定
+// LogConfig holds logging settings.
 type LogConfig struct {
 	Level  string `yaml:"level"`
 	Format string `yaml:"format"`
 }
 
-// SlogLevel Level文字列をslog.Levelに変換
+// SlogLevel converts the Level string to slog.Level.
 func (lc *LogConfig) SlogLevel() slog.Level {
 	switch strings.ToLower(lc.Level) {
 	case "debug":
@@ -54,14 +54,14 @@ func (lc *LogConfig) SlogLevel() slog.Level {
 	}
 }
 
-// WebAPIConfig WebAPI設定
+// WebAPIConfig holds web API server settings.
 type WebAPIConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Host    string `yaml:"host"`
 	Port    int    `yaml:"port"`
 }
 
-// rawConfig YAML読み込み用の中間構造体（app_idを文字列として受け取る）
+// rawConfig is an intermediate struct for YAML parsing (app_id as string).
 type rawConfig struct {
 	GitHub struct {
 		AppID          string `yaml:"app_id"`
@@ -73,26 +73,23 @@ type rawConfig struct {
 	WebAPI    WebAPIConfig    `yaml:"webapi"`
 }
 
-// Load 設定ファイルを読み込む
+// Load reads and parses the config file.
 func Load(configPath string) (*Config, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("設定ファイルの読み込みに失敗: %w", err)
+		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	// 環境変数を展開
-	content := os.ExpandEnv(string(data))
+	expanded := os.ExpandEnv(string(data))
 
-	// YAMLをパース（中間構造体へ）
 	var raw rawConfig
-	if err := yaml.Unmarshal([]byte(content), &raw); err != nil {
-		return nil, fmt.Errorf("設定ファイルのパースに失敗: %w", err)
+	if err := yaml.Unmarshal([]byte(expanded), &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
-	// app_idを数値に変換
 	appID, err := strconv.ParseInt(raw.GitHub.AppID, 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("github.app_id の数値変換に失敗 (%q): %w", raw.GitHub.AppID, err)
+		return nil, fmt.Errorf("failed to parse github.app_id (%q): %w", raw.GitHub.AppID, err)
 	}
 
 	config := &Config{
@@ -107,17 +104,15 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	if err := config.validate(); err != nil {
-		return nil, fmt.Errorf("設定の検証に失敗: %w", err)
+		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
 	return config, nil
 }
 
-// GetPrivateKey Private Keyを取得（環境変数 > 直接指定 > ファイル）
-// PEM秘密鍵は複数行テキストのため、YAML展開（os.ExpandEnv）では改行が壊れる。
-// 環境変数 GH_APP_PRIVATE_KEY からの直接読み取りを最優先とする。
+// GetPrivateKey returns the private key bytes.
+// Priority: GH_APP_PRIVATE_KEY env var > private_key field > private_key_path file.
 func (c *Config) GetPrivateKey() ([]byte, error) {
-	// 環境変数から直接取得（YAML展開を経由しない）
 	if envKey := os.Getenv("GH_APP_PRIVATE_KEY"); envKey != "" {
 		return []byte(envKey), nil
 	}
@@ -127,19 +122,19 @@ func (c *Config) GetPrivateKey() ([]byte, error) {
 	if c.GitHub.PrivateKeyPath != "" {
 		data, err := os.ReadFile(c.GitHub.PrivateKeyPath)
 		if err != nil {
-			return nil, fmt.Errorf("秘密鍵ファイルの読み込みに失敗: %w", err)
+			return nil, fmt.Errorf("failed to read private key file: %w", err)
 		}
 		return data, nil
 	}
-	return nil, fmt.Errorf("秘密鍵が設定されていません（GH_APP_PRIVATE_KEY 環境変数、private_key、または private_key_path を指定してください）")
+	return nil, fmt.Errorf("private key not configured (set GH_APP_PRIVATE_KEY env var, private_key, or private_key_path)")
 }
 
 func (c *Config) validate() error {
 	if c.GitHub.AppID <= 0 {
-		return fmt.Errorf("github.app_id が未設定または不正です")
+		return fmt.Errorf("github.app_id is not set or invalid")
 	}
 	if c.GitHub.PrivateKey == "" && c.GitHub.PrivateKeyPath == "" && os.Getenv("GH_APP_PRIVATE_KEY") == "" {
-		return fmt.Errorf("GH_APP_PRIVATE_KEY 環境変数、github.private_key、または github.private_key_path のいずれかを設定してください")
+		return fmt.Errorf("set GH_APP_PRIVATE_KEY env var, github.private_key, or github.private_key_path")
 	}
 	if c.Reconcile.IntervalMinutes <= 0 {
 		c.Reconcile.IntervalMinutes = 5
@@ -151,7 +146,7 @@ func (c *Config) validate() error {
 		c.Reconcile.Timezone = "UTC"
 	}
 	if _, err := time.LoadLocation(c.Reconcile.Timezone); err != nil {
-		return fmt.Errorf("reconcile.timezone が不正です (%q): %w", c.Reconcile.Timezone, err)
+		return fmt.Errorf("invalid reconcile.timezone (%q): %w", c.Reconcile.Timezone, err)
 	}
 	if c.WebAPI.Port <= 0 {
 		c.WebAPI.Port = 8080
@@ -160,18 +155,18 @@ func (c *Config) validate() error {
 	case "debug", "info", "warn", "error", "":
 		// OK
 	default:
-		return fmt.Errorf("log.level が不正です (%q): debug, info, warn, error のいずれかを指定してください", c.Log.Level)
+		return fmt.Errorf("invalid log.level (%q): must be one of debug, info, warn, error", c.Log.Level)
 	}
 	switch strings.ToLower(c.Log.Format) {
 	case "json", "text", "":
 		// OK
 	default:
-		return fmt.Errorf("log.format が不正です (%q): json, text のいずれかを指定してください", c.Log.Format)
+		return fmt.Errorf("invalid log.format (%q): must be one of json, text", c.Log.Format)
 	}
 	return nil
 }
 
-// GetDefaultConfigPath デフォルトの設定ファイルパスを取得
+// GetDefaultConfigPath returns the default config file path.
 func GetDefaultConfigPath() string {
 	if path := os.Getenv("GHACRON_CONFIG"); path != "" {
 		return path

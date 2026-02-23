@@ -9,25 +9,25 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-// ScanResult スキャン結果
+// ScanResult holds the scan results.
 type ScanResult struct {
 	Annotations []github.CronAnnotation
 }
 
-// ScannerClient スキャナーが使用するGitHub APIインターフェース
+// ScannerClient is the GitHub API interface used by the scanner.
 type ScannerClient interface {
 	GetInstallationRepos(ctx context.Context) ([]github.Repository, error)
 	GetWorkflowFiles(ctx context.Context, owner, repo string) ([]github.WorkflowFile, error)
 	GetFileContent(ctx context.Context, owner, repo, path, ref string) (string, error)
 }
 
-// Scanner リポジトリ横断スキャナー
+// Scanner scans repositories for cron annotations.
 type Scanner struct {
 	client     ScannerClient
 	cronParser cron.Parser
 }
 
-// New 新しいスキャナーを作成
+// New creates a new Scanner.
 func New(client ScannerClient) *Scanner {
 	return &Scanner{
 		client:     client,
@@ -35,7 +35,7 @@ func New(client ScannerClient) *Scanner {
 	}
 }
 
-// ScanAll 全インストール先リポジトリをスキャンしてアノテーションを収集
+// ScanAll scans all installation repositories and collects annotations.
 func (s *Scanner) ScanAll(ctx context.Context) (*ScanResult, error) {
 	repos, err := s.client.GetInstallationRepos(ctx)
 	if err != nil {
@@ -63,7 +63,7 @@ func (s *Scanner) ScanAll(ctx context.Context) (*ScanResult, error) {
 	return result, nil
 }
 
-// scanRepo 単一リポジトリのワークフローファイルをスキャン
+// scanRepo scans workflow files in a single repository.
 func (s *Scanner) scanRepo(ctx context.Context, repo github.Repository) ([]github.CronAnnotation, error) {
 	files, err := s.client.GetWorkflowFiles(ctx, repo.Owner, repo.Name)
 	if err != nil {
@@ -95,14 +95,14 @@ func (s *Scanner) scanRepo(ctx context.Context, repo github.Repository) ([]githu
 	return annotations, nil
 }
 
-// parseFile ワークフローファイルを解析してアノテーションを抽出
+// parseFile parses a workflow file and extracts cron annotations.
 func (s *Scanner) parseFile(repo github.Repository, file github.WorkflowFile, content string) []github.CronAnnotation {
-	// workflow_dispatch が on: に含まれているかチェック
+	// Check if workflow_dispatch is in the on: trigger
 	if !HasWorkflowDispatch(content) {
 		return nil
 	}
 
-	// アノテーションを抽出
+	// Extract annotations
 	cronExprs := ParseAnnotations(content)
 	if len(cronExprs) == 0 {
 		return nil
@@ -111,7 +111,7 @@ func (s *Scanner) parseFile(repo github.Repository, file github.WorkflowFile, co
 	var annotations []github.CronAnnotation
 
 	for _, expr := range cronExprs {
-		// cron式の妥当性チェック
+		// Validate cron expression
 		if _, err := s.cronParser.Parse(expr); err != nil {
 			slog.Warn("skipping invalid cron expression",
 				"owner", repo.Owner,

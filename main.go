@@ -21,8 +21,8 @@ var version = "dev"
 
 func main() {
 	var (
-		configPath  = flag.String("config", config.GetDefaultConfigPath(), "設定ファイルのパス")
-		showVersion = flag.Bool("version", false, "バージョンを表示")
+		configPath  = flag.String("config", config.GetDefaultConfigPath(), "path to config file")
+		showVersion = flag.Bool("version", false, "show version")
 	)
 	flag.Parse()
 
@@ -31,19 +31,21 @@ func main() {
 		return
 	}
 
-	// 設定ファイルを読み込み
+	// Bootstrap logger with JSON/stdout defaults (before config is available)
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
+		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
 
-	// 構造化ロガーを初期化
+	// Re-initialize logger with configured level and format
 	initLogger(&cfg.Log)
 
 	slog.Info("starting ghacron", "version", version)
 
-	// GitHub App クライアントを初期化
+	// Initialize GitHub App client
 	privateKey, err := cfg.GetPrivateKey()
 	if err != nil {
 		slog.Error("failed to get private key", "error", err)
@@ -56,17 +58,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	// タイムゾーンを読み込み
+	// Load timezone
 	loc, err := time.LoadLocation(cfg.Reconcile.Timezone)
 	if err != nil {
 		slog.Error("failed to load timezone", "error", err)
 		os.Exit(1)
 	}
 
-	// スケジューラーを初期化
+	// Initialize scheduler
 	sched := scheduler.New(ghClient, &cfg.Reconcile, loc)
 
-	// APIサーバーを初期化・開始
+	// Initialize and start API server
 	apiServer := api.NewServer(&cfg.WebAPI, cfg)
 	apiServer.SetStatusProvider(sched)
 	if err := apiServer.Start(); err != nil {
@@ -74,7 +76,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Reconciliationループを開始
+	// Start reconciliation loop
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -86,7 +88,7 @@ func main() {
 		"dry_run", cfg.Reconcile.DryRun,
 	)
 
-	// シグナルハンドリング
+	// Wait for shutdown signal
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 

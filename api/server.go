@@ -14,14 +14,14 @@ import (
 	"github.com/korosuke613/ghacron/scheduler"
 )
 
-// StatusProvider ステータス情報を提供するインターフェース
+// StatusProvider provides status information.
 type StatusProvider interface {
 	GetRegisteredJobCount() int
 	GetLastReconcileTime() time.Time
 	GetJobDetails() []scheduler.JobDetail
 }
 
-// Server ヘルス/ステータスAPIサーバー
+// Server is the health/status API server.
 type Server struct {
 	config         *config.WebAPIConfig
 	appConfig      *config.Config
@@ -31,7 +31,7 @@ type Server struct {
 	mu             sync.RWMutex
 }
 
-// NewServer 新しいAPIサーバーを作成
+// NewServer creates a new API server.
 func NewServer(cfg *config.WebAPIConfig, appCfg *config.Config) *Server {
 	return &Server{
 		config:    cfg,
@@ -40,14 +40,14 @@ func NewServer(cfg *config.WebAPIConfig, appCfg *config.Config) *Server {
 	}
 }
 
-// SetStatusProvider ステータスプロバイダーを設定
+// SetStatusProvider sets the status provider.
 func (s *Server) SetStatusProvider(provider StatusProvider) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.statusProvider = provider
 }
 
-// Start APIサーバーを開始
+// Start starts the API server.
 func (s *Server) Start() error {
 	if !s.config.Enabled {
 		slog.Info("web API server is disabled")
@@ -79,7 +79,7 @@ func (s *Server) Start() error {
 	return nil
 }
 
-// Stop APIサーバーを停止
+// Stop stops the API server.
 func (s *Server) Stop() {
 	if s.httpServer == nil {
 		return
@@ -153,7 +153,7 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(jobs)
 }
 
-// configResponse /config エンドポイントの公開可能な設定
+// configResponse is the public configuration exposed by /config.
 type configResponse struct {
 	GitHub    configGitHub    `json:"github"`
 	Reconcile configReconcile `json:"reconcile"`

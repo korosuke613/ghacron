@@ -9,23 +9,23 @@ import (
 	"github.com/korosuke613/ghacron/github"
 )
 
-// StateClient StateManagerが使用するインターフェース
+// StateClient is the interface used by StateManager.
 type StateClient interface {
 	GetVariable(ctx context.Context, owner, repo, name string) (string, error)
 	SetVariable(ctx context.Context, owner, repo, name, value string) error
 }
 
-// StateManager GitHub Actions Variablesによる状態管理
+// StateManager manages state via GitHub Actions Variables.
 type StateManager struct {
 	client StateClient
 }
 
-// NewStateManager 新しいStateManagerを作成
+// NewStateManager creates a new StateManager.
 func NewStateManager(client StateClient) *StateManager {
 	return &StateManager{client: client}
 }
 
-// GetLastDispatchTime 前回のdispatch時刻を取得
+// GetLastDispatchTime retrieves the last dispatch time.
 func (sm *StateManager) GetLastDispatchTime(ctx context.Context, annotation github.CronAnnotation) (time.Time, error) {
 	varName := sm.variableName(annotation)
 
@@ -34,18 +34,18 @@ func (sm *StateManager) GetLastDispatchTime(ctx context.Context, annotation gith
 		return time.Time{}, err
 	}
 	if value == "" {
-		return time.Time{}, nil // 変数が存在しない = 未dispatch
+		return time.Time{}, nil // variable does not exist = never dispatched
 	}
 
 	t, err := time.Parse(time.RFC3339, value)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("dispatch時刻のパースに失敗 (%q): %w", value, err)
+		return time.Time{}, fmt.Errorf("failed to parse dispatch time (%q): %w", value, err)
 	}
 
 	return t, nil
 }
 
-// SetLastDispatchTime dispatch時刻を保存
+// SetLastDispatchTime persists the dispatch time.
 func (sm *StateManager) SetLastDispatchTime(ctx context.Context, annotation github.CronAnnotation, t time.Time) error {
 	varName := sm.variableName(annotation)
 	value := t.Format(time.RFC3339)
@@ -53,8 +53,8 @@ func (sm *StateManager) SetLastDispatchTime(ctx context.Context, annotation gith
 	return sm.client.SetVariable(ctx, annotation.Owner, annotation.Repo, varName, value)
 }
 
-// variableName アノテーションからVariable名を生成
-// 形式: GHACRON_LAST_<SHA256先頭8文字>
+// variableName generates a variable name from an annotation.
+// Format: GHACRON_LAST_<first 8 hex chars of SHA256>
 func (sm *StateManager) variableName(annotation github.CronAnnotation) string {
 	input := annotation.WorkflowFile + ":" + annotation.CronExpr
 	hash := sha256.Sum256([]byte(input))

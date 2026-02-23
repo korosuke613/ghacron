@@ -5,11 +5,11 @@ import (
 	"strings"
 )
 
-// アノテーション抽出用正規表現
-// 形式: # ghacron: "0 8 * * *" または # ghacron: '0 8 * * *'
+// Regex for extracting annotations.
+// Format: # ghacron: "0 8 * * *" or # ghacron: '0 8 * * *'
 var annotationRe = regexp.MustCompile(`^\s*#\s*ghacron:\s*["'](.+?)["']\s*$`)
 
-// ParseAnnotations ワークフローファイルの内容からcronアノテーションを抽出
+// ParseAnnotations extracts cron annotations from workflow file content.
 func ParseAnnotations(content string) []string {
 	var exprs []string
 	lines := strings.Split(content, "\n")
@@ -27,7 +27,7 @@ func ParseAnnotations(content string) []string {
 	return exprs
 }
 
-// HasWorkflowDispatch on: セクションに workflow_dispatch が含まれているかチェック
+// HasWorkflowDispatch checks if workflow_dispatch is in the on: section.
 func HasWorkflowDispatch(content string) bool {
 	lines := strings.Split(content, "\n")
 	inOn := false
@@ -35,10 +35,10 @@ func HasWorkflowDispatch(content string) bool {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		// on: セクションの開始を検出
+		// Detect start of on: section
 		if trimmed == "on:" || strings.HasPrefix(trimmed, "on:") {
 			inOn = true
-			// on: の同一行に workflow_dispatch がある場合
+			// workflow_dispatch on the same line as on:
 			if strings.Contains(trimmed, "workflow_dispatch") {
 				return true
 			}
@@ -46,12 +46,12 @@ func HasWorkflowDispatch(content string) bool {
 		}
 
 		if inOn {
-			// インデントがなくなったら on: セクション終了
+			// End of on: section when indentation stops
 			if len(line) > 0 && line[0] != ' ' && line[0] != '\t' && trimmed != "" {
 				inOn = false
 				continue
 			}
-			// workflow_dispatch を検出
+			// Detect workflow_dispatch
 			if strings.Contains(trimmed, "workflow_dispatch") {
 				return true
 			}

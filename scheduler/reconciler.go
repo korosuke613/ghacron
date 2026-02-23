@@ -9,7 +9,7 @@ import (
 	"github.com/korosuke613/ghacron/scanner"
 )
 
-// Reconciler desired state と actual state の差分を適用
+// Reconciler applies diffs between desired state and actual state.
 type Reconciler struct {
 	client    GitHubClient
 	scheduler *Scheduler
@@ -17,7 +17,7 @@ type Reconciler struct {
 	config    *config.ReconcileConfig
 }
 
-// NewReconciler 新しいReconcilerを作成
+// NewReconciler creates a new Reconciler.
 func NewReconciler(client GitHubClient, sched *Scheduler, cfg *config.ReconcileConfig) *Reconciler {
 	return &Reconciler{
 		client:    client,
@@ -27,21 +27,21 @@ func NewReconciler(client GitHubClient, sched *Scheduler, cfg *config.ReconcileC
 	}
 }
 
-// Reconcile desired state（アノテーション）と actual state（登録済みcron）の差分を適用
+// Reconcile applies diffs between desired state (annotations) and actual state (registered cron jobs).
 func (r *Reconciler) Reconcile(ctx context.Context) error {
-	// 1. Discovery + Scan: 全リポジトリからアノテーションを収集
+	// 1. Discovery + Scan: collect annotations from all repositories
 	result, err := r.scanner.ScanAll(ctx)
 	if err != nil {
 		return err
 	}
 
-	// 2. Desired state をマップに変換
+	// 2. Build desired state map
 	desiredMap := make(map[github.CronJobKey]github.CronAnnotation)
 	for _, a := range result.Annotations {
 		desiredMap[a.Key()] = a
 	}
 
-	// 3. Actual state（登録済みジョブ）を取得
+	// 3. Get actual state (registered jobs)
 	actualKeys := r.scheduler.GetRegisteredKeys()
 
 	// 4. Diff: toAdd = desired - actual, toRemove = actual - desired

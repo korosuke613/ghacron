@@ -12,16 +12,16 @@ import (
 	gh "github.com/google/go-github/v68/github"
 )
 
-// Client GitHub APIクライアント
+// Client is a GitHub API client.
 type Client struct {
 	gh *gh.Client
 }
 
-// NewClient 新しいGitHubクライアントを作成
+// NewClient creates a new GitHub client with App authentication.
 func NewClient(appID int64, privateKeyPEM []byte) (*Client, error) {
 	transport, err := NewTransport(appID, privateKeyPEM)
 	if err != nil {
-		return nil, fmt.Errorf("Transport作成に失敗: %w", err)
+		return nil, fmt.Errorf("failed to create transport: %w", err)
 	}
 
 	httpClient := &http.Client{Transport: transport}
@@ -30,7 +30,7 @@ func NewClient(appID int64, privateKeyPEM []byte) (*Client, error) {
 	return &Client{gh: ghClient}, nil
 }
 
-// GetInstallationRepos インストール先の全リポジトリを取得
+// GetInstallationRepos returns all repositories accessible to the installation.
 func (c *Client) GetInstallationRepos(ctx context.Context) ([]Repository, error) {
 	var repos []Repository
 	opts := &gh.ListOptions{PerPage: 100}
@@ -38,7 +38,7 @@ func (c *Client) GetInstallationRepos(ctx context.Context) ([]Repository, error)
 	for {
 		result, resp, err := c.gh.Apps.ListRepos(ctx, opts)
 		if err != nil {
-			return nil, fmt.Errorf("リポジトリ一覧の取得に失敗: %w", err)
+			return nil, fmt.Errorf("failed to list repositories: %w", err)
 		}
 
 		for _, r := range result.Repositories {
@@ -58,7 +58,7 @@ func (c *Client) GetInstallationRepos(ctx context.Context) ([]Repository, error)
 	return repos, nil
 }
 
-// GetWorkflowFiles リポジトリの .github/workflows/ 配下のファイル一覧を取得
+// GetWorkflowFiles returns workflow files under .github/workflows/.
 func (c *Client) GetWorkflowFiles(ctx context.Context, owner, repo string) ([]WorkflowFile, error) {
 	_, dirContent, _, err := c.gh.Repositories.GetContents(
 		ctx, owner, repo,
@@ -66,11 +66,11 @@ func (c *Client) GetWorkflowFiles(ctx context.Context, owner, repo string) ([]Wo
 		&gh.RepositoryContentGetOptions{},
 	)
 	if err != nil {
-		// 404 = ワークフローディレクトリが存在しない
+		// 404 = workflows directory does not exist
 		if ghErr, ok := err.(*gh.ErrorResponse); ok && ghErr.Response.StatusCode == 404 {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("ワークフロー一覧の取得に失敗 (%s/%s): %w", owner, repo, err)
+		return nil, fmt.Errorf("failed to list workflows (%s/%s): %w", owner, repo, err)
 	}
 
 	var files []WorkflowFile
@@ -88,7 +88,7 @@ func (c *Client) GetWorkflowFiles(ctx context.Context, owner, repo string) ([]Wo
 	return files, nil
 }
 
-// GetFileContent ファイルの内容を取得
+// GetFileContent returns the content of a file in a repository.
 func (c *Client) GetFileContent(ctx context.Context, owner, repo, path, ref string) (string, error) {
 	opts := &gh.RepositoryContentGetOptions{}
 	if ref != "" {
@@ -97,20 +97,18 @@ func (c *Client) GetFileContent(ctx context.Context, owner, repo, path, ref stri
 
 	fileContent, _, _, err := c.gh.Repositories.GetContents(ctx, owner, repo, path, opts)
 	if err != nil {
-		return "", fmt.Errorf("ファイル内容の取得に失敗 (%s/%s/%s): %w", owner, repo, path, err)
+		return "", fmt.Errorf("failed to get file content (%s/%s/%s): %w", owner, repo, path, err)
 	}
 	if fileContent == nil {
-		return "", fmt.Errorf("ファイルが見つかりません: %s/%s/%s", owner, repo, path)
+		return "", fmt.Errorf("file not found: %s/%s/%s", owner, repo, path)
 	}
 
-	// Base64デコード
 	if fileContent.Content != nil {
 		decoded, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(*fileContent.Content, "\n", ""))
 		if err != nil {
-			// GetContent() を試行
 			content, err := fileContent.GetContent()
 			if err != nil {
-				return "", fmt.Errorf("ファイル内容のデコードに失敗: %w", err)
+				return "", fmt.Errorf("failed to decode file content: %w", err)
 			}
 			return content, nil
 		}
@@ -119,12 +117,12 @@ func (c *Client) GetFileContent(ctx context.Context, owner, repo, path, ref stri
 
 	content, err := fileContent.GetContent()
 	if err != nil {
-		return "", fmt.Errorf("ファイル内容の取得に失敗: %w", err)
+		return "", fmt.Errorf("failed to get file content: %w", err)
 	}
 	return content, nil
 }
 
-// DispatchWorkflow workflow_dispatch イベントを発火
+// DispatchWorkflow triggers a workflow_dispatch event.
 func (c *Client) DispatchWorkflow(ctx context.Context, owner, repo, workflowFile, ref string) error {
 	resp, err := c.gh.Actions.CreateWorkflowDispatchEventByFileName(
 		ctx, owner, repo, workflowFile,
@@ -134,10 +132,10 @@ func (c *Client) DispatchWorkflow(ctx context.Context, owner, repo, workflowFile
 	)
 	if err != nil {
 		if resp != nil {
-			return fmt.Errorf("workflow_dispatch発火に失敗 (%s/%s/%s, status=%d): %w",
+			return fmt.Errorf("failed to dispatch workflow (%s/%s/%s, status=%d): %w",
 				owner, repo, workflowFile, resp.StatusCode, err)
 		}
-		return fmt.Errorf("workflow_dispatch発火に失敗 (%s/%s/%s): %w",
+		return fmt.Errorf("failed to dispatch workflow (%s/%s/%s): %w",
 			owner, repo, workflowFile, err)
 	}
 
@@ -150,33 +148,31 @@ func (c *Client) DispatchWorkflow(ctx context.Context, owner, repo, workflowFile
 	return nil
 }
 
-// GetVariable リポジトリのActions Variableを取得
+// GetVariable returns the value of a repository Actions variable.
 func (c *Client) GetVariable(ctx context.Context, owner, repo, name string) (string, error) {
 	variable, resp, err := c.gh.Actions.GetRepoVariable(ctx, owner, repo, name)
 	if err != nil {
 		if resp != nil && resp.StatusCode == 404 {
-			return "", nil // 変数が存在しない
+			return "", nil // variable does not exist
 		}
-		return "", fmt.Errorf("Variable取得に失敗 (%s/%s/%s): %w", owner, repo, name, err)
+		return "", fmt.Errorf("failed to get variable (%s/%s/%s): %w", owner, repo, name, err)
 	}
 	return variable.Value, nil
 }
 
-// SetVariable リポジトリのActions Variableを作成または更新
+// SetVariable creates or updates a repository Actions variable.
 func (c *Client) SetVariable(ctx context.Context, owner, repo, name, value string) error {
-	// まず更新を試みる
 	_, err := c.gh.Actions.UpdateRepoVariable(ctx, owner, repo, &gh.ActionsVariable{
 		Name:  name,
 		Value: value,
 	})
 	if err != nil {
-		// 更新に失敗した場合は作成を試みる
 		_, createErr := c.gh.Actions.CreateRepoVariable(ctx, owner, repo, &gh.ActionsVariable{
 			Name:  name,
 			Value: value,
 		})
 		if createErr != nil {
-			return fmt.Errorf("Variable設定に失敗 (%s/%s/%s): update=%v, create=%v", owner, repo, name, err, createErr)
+			return fmt.Errorf("failed to set variable (%s/%s/%s): update=%v, create=%v", owner, repo, name, err, createErr)
 		}
 	}
 	return nil
