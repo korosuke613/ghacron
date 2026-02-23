@@ -28,7 +28,7 @@ on:
   workflow_dispatch:
 ```
 
-When specified, the prefix overrides the global `reconcile.timezone` setting for that job. The value must be a valid [IANA timezone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
+When specified, the prefix overrides the global `GHACRON_TIMEZONE` setting for that job. The value must be a valid [IANA timezone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
 
 ## Requirements
 
@@ -42,54 +42,41 @@ When specified, the prefix overrides the global `reconcile.timezone` setting for
 ./ghacron [options]
 ```
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-config` | `ghacron.yaml` | Path to config file |
-| `-version` | — | Show version and exit |
-
-The default config path can also be overridden via the `GHACRON_CONFIG` environment variable.
+| Flag | Description |
+|------|-------------|
+| `-version` | Show version and exit |
 
 ```bash
 # Binary
-GH_APP_ID=123456 GH_APP_PRIVATE_KEY="$(cat key.pem)" ./ghacron
-
-# Binary with custom config
-./ghacron -config /etc/ghacron/ghacron.yaml
+GHACRON_APP_ID=123456 GHACRON_APP_PRIVATE_KEY="$(cat key.pem)" ./ghacron
 
 # Docker
-docker run -e GH_APP_ID=123456 -e GH_APP_PRIVATE_KEY="$(cat key.pem)" ghcr.io/korosuke613/ghacron
-
-# Docker with custom config
-docker run -v ./ghacron.yaml:/app/ghacron.yaml \
-  -e GH_APP_ID=123456 -e GH_APP_PRIVATE_KEY="$(cat key.pem)" ghcr.io/korosuke613/ghacron
+docker run \
+  -e GHACRON_APP_ID=123456 \
+  -e GHACRON_APP_PRIVATE_KEY="$(cat key.pem)" \
+  ghcr.io/korosuke613/ghacron
 ```
 
 ## Configuration
 
-The config file is optional. Without it, ghacron runs with built-in defaults and environment variables (`GH_APP_ID`, `GH_APP_PRIVATE_KEY`).
+All configuration is done via `GHACRON_*` environment variables.
 
-Config file example:
+| Environment Variable | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `GHACRON_APP_ID` | int64 | — | Yes | GitHub App ID |
+| `GHACRON_APP_PRIVATE_KEY` | string | — | Yes* | GitHub App Private Key (PEM) |
+| `GHACRON_APP_PRIVATE_KEY_PATH` | string | — | Yes* | Private Key file path |
+| `GHACRON_RECONCILE_INTERVAL_MINUTES` | int | `5` | No | Reconcile loop interval in minutes |
+| `GHACRON_RECONCILE_DUPLICATE_GUARD_SECONDS` | int | `60` | No | Duplicate dispatch guard in seconds |
+| `GHACRON_DRY_RUN` | bool | `false` | No | Dry-run mode |
+| `GHACRON_TIMEZONE` | string | `UTC` | No | IANA timezone for cron schedule evaluation |
+| `GHACRON_LOG_LEVEL` | string | `info` | No | Log level (debug/info/warn/error) |
+| `GHACRON_LOG_FORMAT` | string | `json` | No | Log format (json/text) |
+| `GHACRON_WEBAPI_ENABLED` | bool | `true` | No | Enable/disable web API server |
+| `GHACRON_WEBAPI_HOST` | string | `0.0.0.0` | No | Web API listen host |
+| `GHACRON_WEBAPI_PORT` | int | `8080` | No | Web API listen port |
 
-```yaml
-github:
-  app_id: ${GH_APP_ID}
-  private_key: "${GH_APP_PRIVATE_KEY}"
-
-reconcile:
-  interval_minutes: 5
-  duplicate_guard_seconds: 60
-  dry_run: false
-  timezone: "Asia/Tokyo"    # IANA timezone for cron schedule evaluation
-
-log:
-  level: "info"
-  format: "json"            # "json" or "text"
-
-webapi:
-  enabled: true
-  host: "0.0.0.0"
-  port: 8080
-```
+*Either `GHACRON_APP_PRIVATE_KEY` or `GHACRON_APP_PRIVATE_KEY_PATH` is required. When both are set, `GHACRON_APP_PRIVATE_KEY` takes priority.
 
 ## API Endpoints
 
@@ -148,10 +135,16 @@ Public configuration (credentials are not exposed).
 
 ```json
 {
-  "github": {"app_id": 123456},
-  "reconcile": {"interval_minutes": 5, "duplicate_guard_seconds": 60, "dry_run": false},
-  "log": {"level": "info", "format": "json"},
-  "webapi": {"enabled": true, "host": "0.0.0.0", "port": 8080}
+  "app_id": 123456,
+  "reconcile_interval_minutes": 5,
+  "reconcile_duplicate_guard_seconds": 60,
+  "dry_run": false,
+  "timezone": "UTC",
+  "log_level": "info",
+  "log_format": "json",
+  "webapi_enabled": true,
+  "webapi_host": "0.0.0.0",
+  "webapi_port": 8080
 }
 ```
 
@@ -161,12 +154,19 @@ Public configuration (credentials are not exposed).
 # Build
 docker build -t ghacron .
 
-# Run (env vars only, no config file needed)
-docker run -e GH_APP_ID=123456 -e GH_APP_PRIVATE_KEY="$(cat key.pem)" ghacron
+# Run
+docker run \
+  -e GHACRON_APP_ID=123456 \
+  -e GHACRON_APP_PRIVATE_KEY="$(cat key.pem)" \
+  ghacron
 
-# Run with custom config file
-docker run -v ./ghacron.yaml:/app/ghacron.yaml \
-  -e GH_APP_ID=123456 -e GH_APP_PRIVATE_KEY="$(cat key.pem)" ghacron
+# Run with all options
+docker run \
+  -e GHACRON_APP_ID=123456 \
+  -e GHACRON_APP_PRIVATE_KEY="$(cat key.pem)" \
+  -e GHACRON_TIMEZONE=Asia/Tokyo \
+  -e GHACRON_DRY_RUN=true \
+  ghacron
 ```
 
 ## Kubernetes Deployment
@@ -176,27 +176,15 @@ containers:
 - name: ghacron
   image: ghcr.io/korosuke613/ghacron:latest
   env:
-  - name: GH_APP_ID
+  - name: GHACRON_APP_ID
     value: "123456"
-  - name: GH_APP_PRIVATE_KEY
+  - name: GHACRON_APP_PRIVATE_KEY
     valueFrom:
       secretKeyRef:
         name: ghacron-secrets
         key: private-key
-  volumeMounts:
-  - name: config
-    mountPath: /app/ghacron.yaml
-    subPath: ghacron.yaml
-volumes:
-- name: config
-  configMap:
-    name: ghacron-config
-```
-
-To use a custom config, create a ConfigMap:
-
-```bash
-kubectl create configmap ghacron-config --from-file=ghacron.yaml
+  - name: GHACRON_TIMEZONE
+    value: "Asia/Tokyo"
 ```
 
 ## Development
@@ -206,7 +194,7 @@ kubectl create configmap ghacron-config --from-file=ghacron.yaml
 go build -ldflags="-s -w -X main.version=$(git describe --tags --always)" -o ghacron main.go
 
 # Run (dry-run)
-GH_APP_ID=123456 GH_APP_PRIVATE_KEY="$(cat key.pem)" ./ghacron
+GHACRON_APP_ID=123456 GHACRON_APP_PRIVATE_KEY="$(cat key.pem)" GHACRON_DRY_RUN=true ./ghacron
 
 # Test
 go test ./...

@@ -165,32 +165,18 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 }
 
 // configResponse is the public configuration exposed by /config.
+// Keys correspond to GHACRON_* environment variable names (without the prefix).
 type configResponse struct {
-	GitHub    configGitHub    `json:"github"`
-	Reconcile configReconcile `json:"reconcile"`
-	Log       configLog       `json:"log"`
-	WebAPI    configWebAPI    `json:"webapi"`
-}
-
-type configGitHub struct {
-	AppID int64 `json:"app_id"`
-}
-
-type configReconcile struct {
-	IntervalMinutes       int  `json:"interval_minutes"`
-	DuplicateGuardSeconds int  `json:"duplicate_guard_seconds"`
-	DryRun                bool `json:"dry_run"`
-}
-
-type configLog struct {
-	Level  string `json:"level"`
-	Format string `json:"format"`
-}
-
-type configWebAPI struct {
-	Enabled bool   `json:"enabled"`
-	Host    string `json:"host"`
-	Port    int    `json:"port"`
+	AppID                 int64  `json:"app_id"`
+	IntervalMinutes       int    `json:"reconcile_interval_minutes"`
+	DuplicateGuardSeconds int    `json:"reconcile_duplicate_guard_seconds"`
+	DryRun                bool   `json:"dry_run"`
+	Timezone              string `json:"timezone"`
+	LogLevel              string `json:"log_level"`
+	LogFormat             string `json:"log_format"`
+	WebapiEnabled         bool   `json:"webapi_enabled"`
+	WebapiHost            string `json:"webapi_host"`
+	WebapiPort            int    `json:"webapi_port"`
 }
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -199,23 +185,16 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	resp := configResponse{
-		GitHub: configGitHub{
-			AppID: appCfg.GitHub.AppID,
-		},
-		Reconcile: configReconcile{
-			IntervalMinutes:       appCfg.Reconcile.IntervalMinutes,
-			DuplicateGuardSeconds: appCfg.Reconcile.DuplicateGuardSeconds,
-			DryRun:                appCfg.Reconcile.DryRun,
-		},
-		Log: configLog{
-			Level:  appCfg.Log.Level,
-			Format: appCfg.Log.Format,
-		},
-		WebAPI: configWebAPI{
-			Enabled: appCfg.WebAPI.Enabled,
-			Host:    appCfg.WebAPI.Host,
-			Port:    appCfg.WebAPI.Port,
-		},
+		AppID:                 appCfg.GitHub.AppID,
+		IntervalMinutes:       appCfg.Reconcile.IntervalMinutes,
+		DuplicateGuardSeconds: appCfg.Reconcile.DuplicateGuardSeconds,
+		DryRun:                appCfg.Reconcile.DryRun,
+		Timezone:              appCfg.Reconcile.Timezone,
+		LogLevel:              appCfg.Log.Level,
+		LogFormat:             appCfg.Log.Format,
+		WebapiEnabled:         appCfg.WebAPI.Enabled,
+		WebapiHost:            appCfg.WebAPI.Host,
+		WebapiPort:            appCfg.WebAPI.Port,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

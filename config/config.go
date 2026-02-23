@@ -1,43 +1,42 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 // Config represents the entire application configuration.
 type Config struct {
-	GitHub    GitHubConfig    `yaml:"github"`
-	Reconcile ReconcileConfig `yaml:"reconcile"`
-	Log       LogConfig       `yaml:"log"`
-	WebAPI    WebAPIConfig    `yaml:"webapi"`
+	GitHub    GitHubConfig
+	Reconcile ReconcileConfig
+	Log       LogConfig
+	WebAPI    WebAPIConfig
 }
 
 // GitHubConfig holds GitHub App credentials.
 type GitHubConfig struct {
-	AppID          int64  `yaml:"app_id"`
-	PrivateKey     string `yaml:"private_key"`
-	PrivateKeyPath string `yaml:"private_key_path"`
+	AppID          int64
+	PrivateKey     string
+	PrivateKeyPath string
 }
 
 // ReconcileConfig holds reconciliation loop settings.
 type ReconcileConfig struct {
-	IntervalMinutes       int    `yaml:"interval_minutes"`
-	DuplicateGuardSeconds int    `yaml:"duplicate_guard_seconds"`
-	DryRun                bool   `yaml:"dry_run"`
-	Timezone              string `yaml:"timezone"`
+	IntervalMinutes       int
+	DuplicateGuardSeconds int
+	DryRun                bool
+	Timezone              string
 }
 
 // LogConfig holds logging settings.
 type LogConfig struct {
-	Level  string `yaml:"level"`
-	Format string `yaml:"format"`
+	Level  string
+	Format string
 }
 
 // SlogLevel converts the Level string to slog.Level.
@@ -56,77 +55,83 @@ func (lc *LogConfig) SlogLevel() slog.Level {
 
 // WebAPIConfig holds web API server settings.
 type WebAPIConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Host    string `yaml:"host"`
-	Port    int    `yaml:"port"`
+	Enabled bool
+	Host    string
+	Port    int
 }
 
-// rawConfig is an intermediate struct for YAML parsing (app_id as string).
-type rawConfig struct {
-	GitHub struct {
-		AppID          string `yaml:"app_id"`
-		PrivateKey     string `yaml:"private_key"`
-		PrivateKeyPath string `yaml:"private_key_path"`
-	} `yaml:"github"`
-	Reconcile ReconcileConfig `yaml:"reconcile"`
-	Log       LogConfig       `yaml:"log"`
-	WebAPI    WebAPIConfig    `yaml:"webapi"`
-}
-
-// Load reads and parses the config file.
-// If the file does not exist, the application falls back to environment
-// variables and built-in defaults so that a config file is not required.
-func Load(configPath string) (*Config, error) {
-	var raw rawConfig
-	raw.WebAPI.Enabled = true // web API server is enabled by default
-
-	data, err := os.ReadFile(configPath)
+// Load reads configuration from GHACRON_* environment variables.
+func Load() (*Config, error) {
+	appID, err := envInt64("GHACRON_APP_ID", 0)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, fmt.Errorf("failed to read config file: %w", err)
-		}
-		slog.Info("config file not found, using defaults and environment variables", "path", configPath)
-	} else {
-		expanded := os.ExpandEnv(string(data))
-		if err := yaml.Unmarshal([]byte(expanded), &raw); err != nil {
-			return nil, fmt.Errorf("failed to parse config file: %w", err)
-		}
+		return nil, fmt.Errorf("invalid GHACRON_APP_ID: %w", err)
 	}
 
-	// Fill github.app_id from env if not set in file
-	if raw.GitHub.AppID == "" {
-		raw.GitHub.AppID = os.Getenv("GH_APP_ID")
+	intervalMinutes, err := envInt("GHACRON_RECONCILE_INTERVAL_MINUTES", 5)
+	if err != nil {
+		return nil, fmt.Errorf("invalid GHACRON_RECONCILE_INTERVAL_MINUTES: %w", err)
 	}
 
-	appID, err := strconv.ParseInt(raw.GitHub.AppID, 10, 64)
+	duplicateGuardSeconds, err := envInt("GHACRON_RECONCILE_DUPLICATE_GUARD_SECONDS", 60)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse github.app_id (%q): %w", raw.GitHub.AppID, err)
+		return nil, fmt.Errorf("invalid GHACRON_RECONCILE_DUPLICATE_GUARD_SECONDS: %w", err)
+	}
+
+	dryRun, err := envBool("GHACRON_DRY_RUN", false)
+	if err != nil {
+		return nil, fmt.Errorf("invalid GHACRON_DRY_RUN: %w", err)
+	}
+
+	timezone := envStr("GHACRON_TIMEZONE", "UTC")
+
+	logLevel := envStr("GHACRON_LOG_LEVEL", "info")
+	logFormat := envStr("GHACRON_LOG_FORMAT", "json")
+
+	webapiEnabled, err := envBool("GHACRON_WEBAPI_ENABLED", true)
+	if err != nil {
+		return nil, fmt.Errorf("invalid GHACRON_WEBAPI_ENABLED: %w", err)
+	}
+
+	webapiHost := envStr("GHACRON_WEBAPI_HOST", "0.0.0.0")
+
+	webapiPort, err := envInt("GHACRON_WEBAPI_PORT", 8080)
+	if err != nil {
+		return nil, fmt.Errorf("invalid GHACRON_WEBAPI_PORT: %w", err)
 	}
 
 	config := &Config{
 		GitHub: GitHubConfig{
 			AppID:          appID,
-			PrivateKey:     raw.GitHub.PrivateKey,
-			PrivateKeyPath: raw.GitHub.PrivateKeyPath,
+			PrivateKey:     os.Getenv("GHACRON_APP_PRIVATE_KEY"),
+			PrivateKeyPath: os.Getenv("GHACRON_APP_PRIVATE_KEY_PATH"),
 		},
-		Reconcile: raw.Reconcile,
-		Log:       raw.Log,
-		WebAPI:    raw.WebAPI,
+		Reconcile: ReconcileConfig{
+			IntervalMinutes:       intervalMinutes,
+			DuplicateGuardSeconds: duplicateGuardSeconds,
+			DryRun:                dryRun,
+			Timezone:              timezone,
+		},
+		Log: LogConfig{
+			Level:  logLevel,
+			Format: logFormat,
+		},
+		WebAPI: WebAPIConfig{
+			Enabled: webapiEnabled,
+			Host:    webapiHost,
+			Port:    webapiPort,
+		},
 	}
 
 	if err := config.validate(); err != nil {
-		return nil, fmt.Errorf("config validation failed: %w", err)
+		return nil, err
 	}
 
 	return config, nil
 }
 
 // GetPrivateKey returns the private key bytes.
-// Priority: GH_APP_PRIVATE_KEY env var > private_key field > private_key_path file.
+// Priority: GHACRON_APP_PRIVATE_KEY env > GHACRON_APP_PRIVATE_KEY_PATH file.
 func (c *Config) GetPrivateKey() ([]byte, error) {
-	if envKey := os.Getenv("GH_APP_PRIVATE_KEY"); envKey != "" {
-		return []byte(envKey), nil
-	}
 	if c.GitHub.PrivateKey != "" {
 		return []byte(c.GitHub.PrivateKey), nil
 	}
@@ -137,53 +142,73 @@ func (c *Config) GetPrivateKey() ([]byte, error) {
 		}
 		return data, nil
 	}
-	return nil, fmt.Errorf("private key not configured (set GH_APP_PRIVATE_KEY env var, private_key, or private_key_path)")
+	return nil, errors.New("private key not configured (set GHACRON_APP_PRIVATE_KEY or GHACRON_APP_PRIVATE_KEY_PATH)")
 }
 
 func (c *Config) validate() error {
 	if c.GitHub.AppID <= 0 {
-		return fmt.Errorf("github.app_id is not set or invalid")
+		return errors.New("GHACRON_APP_ID is required")
 	}
-	if c.GitHub.PrivateKey == "" && c.GitHub.PrivateKeyPath == "" && os.Getenv("GH_APP_PRIVATE_KEY") == "" {
-		return fmt.Errorf("set GH_APP_PRIVATE_KEY env var, github.private_key, or github.private_key_path")
-	}
-	if c.Reconcile.IntervalMinutes <= 0 {
-		c.Reconcile.IntervalMinutes = 5
-	}
-	if c.Reconcile.DuplicateGuardSeconds <= 0 {
-		c.Reconcile.DuplicateGuardSeconds = 60
-	}
-	if c.Reconcile.Timezone == "" {
-		c.Reconcile.Timezone = "UTC"
+	if c.GitHub.PrivateKey == "" && c.GitHub.PrivateKeyPath == "" {
+		return errors.New("GHACRON_APP_PRIVATE_KEY or GHACRON_APP_PRIVATE_KEY_PATH is required")
 	}
 	if _, err := time.LoadLocation(c.Reconcile.Timezone); err != nil {
-		return fmt.Errorf("invalid reconcile.timezone (%q): %w", c.Reconcile.Timezone, err)
-	}
-	if c.WebAPI.Port <= 0 {
-		c.WebAPI.Port = 8080
-	}
-	if c.WebAPI.Host == "" {
-		c.WebAPI.Host = "0.0.0.0"
+		return fmt.Errorf("invalid GHACRON_TIMEZONE (%q): %w", c.Reconcile.Timezone, err)
 	}
 	switch strings.ToLower(c.Log.Level) {
-	case "debug", "info", "warn", "error", "":
+	case "debug", "info", "warn", "error":
 		// OK
 	default:
-		return fmt.Errorf("invalid log.level (%q): must be one of debug, info, warn, error", c.Log.Level)
+		return fmt.Errorf("invalid GHACRON_LOG_LEVEL (%q): must be one of debug, info, warn, error", c.Log.Level)
 	}
 	switch strings.ToLower(c.Log.Format) {
-	case "json", "text", "":
+	case "json", "text":
 		// OK
 	default:
-		return fmt.Errorf("invalid log.format (%q): must be one of json, text", c.Log.Format)
+		return fmt.Errorf("invalid GHACRON_LOG_FORMAT (%q): must be one of json, text", c.Log.Format)
 	}
 	return nil
 }
 
-// GetDefaultConfigPath returns the default config file path.
-func GetDefaultConfigPath() string {
-	if path := os.Getenv("GHACRON_CONFIG"); path != "" {
-		return path
+func envStr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
-	return "ghacron.yaml"
+	return fallback
+}
+
+func envInt(key string, fallback int) (int, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback, nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, fmt.Errorf("expected integer for %s: %w", key, err)
+	}
+	return n, nil
+}
+
+func envInt64(key string, fallback int64) (int64, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback, nil
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("expected integer for %s: %w", key, err)
+	}
+	return n, nil
+}
+
+func envBool(key string, fallback bool) (bool, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback, nil
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false, fmt.Errorf("expected boolean for %s: %w", key, err)
+	}
+	return b, nil
 }

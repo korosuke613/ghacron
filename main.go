@@ -20,10 +20,7 @@ import (
 var version = "dev"
 
 func main() {
-	var (
-		configPath  = flag.String("config", config.GetDefaultConfigPath(), "path to config file")
-		showVersion = flag.Bool("version", false, "show version")
-	)
+	showVersion := flag.Bool("version", false, "show version")
 	flag.Parse()
 
 	if *showVersion {
@@ -34,7 +31,7 @@ func main() {
 	// Bootstrap logger with JSON/stdout defaults (before config is available)
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 
-	cfg, err := config.Load(*configPath)
+	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
