@@ -55,7 +55,7 @@ webapi:
 
 ```bash
 # Build
-go build -o ghacron main.go
+go build -ldflags="-s -w -X main.version=$(git describe --tags --always)" -o ghacron main.go
 
 # Run (dry-run)
 GH_APP_ID=123456 GH_APP_PRIVATE_KEY="$(cat key.pem)" ./ghacron
@@ -63,6 +63,22 @@ GH_APP_ID=123456 GH_APP_PRIVATE_KEY="$(cat key.pem)" ./ghacron
 # Test
 go test ./...
 ```
+
+### Release Strategy
+
+Releases are triggered exclusively by GitHub Release events — pushing to `main` does not publish any artifacts.
+
+1. Create a GitHub Release (manually or via `/generate-release` skill in Claude Code)
+2. The `release.yml` workflow automatically:
+   - Builds Go binaries for linux/amd64 and linux/arm64 via [GoReleaser](https://goreleaser.com/)
+   - Builds and pushes multi-arch Docker images to `ghcr.io/korosuke613/ghacron`
+
+**Tagging rules:**
+
+| Release type | Example tag | Docker tags | `latest` |
+|---|---|---|---|
+| Stable | `v1.0.0` | `1.0.0`, `1.0`, `latest` | Yes |
+| Release candidate | `v1.0.0-rc.1` | `1.0.0-rc.1` | No |
 
 ## Docker
 
