@@ -1,7 +1,7 @@
 name: CI
 
 on:
-  # gh-cron-trigger: "52 18 * * *"
+  # ghacron: "52 18 * * *"
   workflow_dispatch:
   push:
     branches:

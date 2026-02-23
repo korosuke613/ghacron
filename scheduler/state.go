@@ -54,9 +54,9 @@ func (sm *StateManager) SetLastDispatchTime(ctx context.Context, annotation gith
 }
 
 // variableName アノテーションからVariable名を生成
-// 形式: GH_CRON_TRIGGER_LAST_<SHA256先頭8文字>
+// 形式: GHACRON_LAST_<SHA256先頭8文字>
 func (sm *StateManager) variableName(annotation github.CronAnnotation) string {
 	input := annotation.WorkflowFile + ":" + annotation.CronExpr
 	hash := sha256.Sum256([]byte(input))
-	return fmt.Sprintf("GH_CRON_TRIGGER_LAST_%X", hash[:4])
+	return fmt.Sprintf("GHACRON_LAST_%X", hash[:4])
 }

@@ -98,7 +98,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"service": "gh-cron-trigger",
+		"service": "ghacron",
 		"endpoints": []map[string]string{
 			{"path": "/healthz", "description": "Health check"},
 			{"path": "/status", "description": "Service status (uptime, job count, last reconcile)"},

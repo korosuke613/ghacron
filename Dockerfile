@@ -13,13 +13,13 @@ RUN go mod download
 COPY . .
 
 # Build the application (CGO disabled for static binary)
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o gh-cron-trigger main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o ghacron main.go
 
 # Runtime stage using distroless (minimal attack surface)
 FROM gcr.io/distroless/static-debian12
 
 # Copy the binary from builder stage
-COPY --from=builder /app/gh-cron-trigger /app/gh-cron-trigger
+COPY --from=builder /app/ghacron /app/ghacron
 
 # Copy configuration file
 COPY config/config.yaml /app/config/
@@ -30,4 +30,4 @@ WORKDIR /app
 EXPOSE 8080
 
 # Default command
-ENTRYPOINT ["./gh-cron-trigger"]
+ENTRYPOINT ["./ghacron"]

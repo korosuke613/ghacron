@@ -26,7 +26,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("gh-cron-trigger v%s\n", Version)
+		fmt.Printf("ghacron v%s\n", Version)
 		return
 	}
 
@@ -36,7 +36,7 @@ func main() {
 		log.Fatalf("設定ファイルの読み込みに失敗: %v", err)
 	}
 
-	log.Printf("gh-cron-trigger v%s を開始します...", Version)
+	log.Printf("ghacron v%s を開始します...", Version)
 
 	// GitHub App クライアントを初期化
 	privateKey, err := cfg.GetPrivateKey()
@@ -73,7 +73,7 @@ func main() {
 
 	log.Printf("設定: reconcile間隔=%d分, 重複ガード=%d秒, dry_run=%v",
 		cfg.Reconcile.IntervalMinutes, cfg.Reconcile.DuplicateGuardSeconds, cfg.Reconcile.DryRun)
-	log.Println("gh-cron-trigger が開始されました。Ctrl+C で停止できます。")
+	log.Println("ghacron が開始されました。Ctrl+C で停止できます。")
 
 	// シグナルハンドリング
 	sigChan := make(chan os.Signal, 1)
@@ -86,7 +86,7 @@ func main() {
 	sched.Stop()
 	apiServer.Stop()
 
-	log.Println("gh-cron-trigger を停止しました")
+	log.Println("ghacron を停止しました")
 }
 
 func init() {

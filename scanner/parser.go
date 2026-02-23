@@ -6,8 +6,8 @@ import (
 )
 
 // アノテーション抽出用正規表現
-// 形式: # gh-cron-trigger: "0 8 * * *" または # gh-cron-trigger: '0 8 * * *'
-var annotationRe = regexp.MustCompile(`^\s*#\s*gh-cron-trigger:\s*["'](.+?)["']\s*$`)
+// 形式: # ghacron: "0 8 * * *" または # ghacron: '0 8 * * *'
+var annotationRe = regexp.MustCompile(`^\s*#\s*ghacron:\s*["'](.+?)["']\s*$`)
 
 // ParseAnnotations ワークフローファイルの内容からcronアノテーションを抽出
 func ParseAnnotations(content string) []string {

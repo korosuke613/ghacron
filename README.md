@@ -4,7 +4,7 @@ GitHub Actions `schedule` events (cron triggers) have a known issue where delays
 
 ## How It Works
 
-- Add annotations like `# gh-cron-trigger: "0 8 * * *"` to your workflow files
+- Add annotations like `# ghacron: "0 8 * * *"` to your workflow files
 - The service scans repositories every 5 minutes and detects annotations
 - Fires `workflow_dispatch` according to the cron expression
 - State is persisted via GitHub Actions Variables (no PVC required)
@@ -13,7 +13,7 @@ GitHub Actions `schedule` events (cron triggers) have a known issue where delays
 
 ```yaml
 on:
-  # gh-cron-trigger: "0 8 * * *"
+  # ghacron: "0 8 * * *"
   workflow_dispatch:
 ```
 
@@ -55,10 +55,10 @@ webapi:
 
 ```bash
 # Build
-go build -o gh-cron-trigger main.go
+go build -o ghacron main.go
 
 # Run (dry-run)
-GH_APP_ID=123456 GH_APP_PRIVATE_KEY="$(cat key.pem)" ./gh-cron-trigger
+GH_APP_ID=123456 GH_APP_PRIVATE_KEY="$(cat key.pem)" ./ghacron
 
 # Test
 go test ./...

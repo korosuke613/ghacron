@@ -9,7 +9,7 @@ This file provides guidance to Claude Code when working with this application.
 ### Development
 ```bash
 # Build
-go build -o gh-cron-trigger main.go
+go build -o ghacron main.go
 
 # Run
 GH_APP_ID=123456 GH_APP_PRIVATE_KEY="$(cat key.pem)" go run main.go
@@ -23,7 +23,7 @@ go test ./...
 
 ### Production Build
 ```bash
-go build -ldflags="-s -w" -o gh-cron-trigger main.go
+go build -ldflags="-s -w" -o ghacron main.go
 ```
 
 ### API Testing

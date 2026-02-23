@@ -144,7 +144,7 @@ func (c *Config) validate() error {
 
 // GetDefaultConfigPath デフォルトの設定ファイルパスを取得
 func GetDefaultConfigPath() string {
-	if path := os.Getenv("GH_CRON_TRIGGER_CONFIG"); path != "" {
+	if path := os.Getenv("GHACRON_CONFIG"); path != "" {
 		return path
 	}
 	return "config/config.yaml"
