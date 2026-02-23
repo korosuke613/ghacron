@@ -25,6 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **scope**: 使用しない
 - **description**: 変更の要約（英語、小文字始まり、末尾ピリオドなし）
 - **breaking change**: 破壊的変更がある場合は `!` を付与（例: `feat!: rename annotation syntax`）
+  - デフォルト値の変更、設定キーのリネーム、APIレスポンス構造の変更など、既存ユーザーが同じ設定のままアップグレードしたときに挙動が変わるものはすべて破壊的変更
 
 ## Common Commands
 

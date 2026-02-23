@@ -78,6 +78,7 @@ type rawConfig struct {
 // variables and built-in defaults so that a config file is not required.
 func Load(configPath string) (*Config, error) {
 	var raw rawConfig
+	raw.WebAPI.Enabled = true // web API server is enabled by default
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
