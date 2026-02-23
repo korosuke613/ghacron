@@ -5,7 +5,7 @@ type CronAnnotation struct {
 	Owner        string // repository owner
 	Repo         string // repository name
 	WorkflowFile string // workflow file name (e.g. "build.yml")
-	CronExpr     string // cron expression (5-field standard format)
+	CronExpr     string // cron expression (5-field format, optional CRON_TZ=/TZ= prefix)
 	Ref          string // default branch
 }
 

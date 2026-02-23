@@ -35,6 +35,9 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 		return err
 	}
 
+	// Update skipped annotations
+	r.scheduler.SetSkippedAnnotations(result.Skipped)
+
 	// 2. Build desired state map
 	desiredMap := make(map[github.CronJobKey]github.CronAnnotation)
 	for _, a := range result.Annotations {

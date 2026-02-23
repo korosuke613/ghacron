@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/korosuke613/ghacron/config"
+	"github.com/korosuke613/ghacron/scanner"
 	"github.com/korosuke613/ghacron/scheduler"
 )
 
@@ -19,6 +20,7 @@ type StatusProvider interface {
 	GetRegisteredJobCount() int
 	GetLastReconcileTime() time.Time
 	GetJobDetails() []scheduler.JobDetail
+	GetSkippedAnnotations() []scanner.SkippedAnnotation
 }
 
 // Server is the health/status API server.
@@ -136,21 +138,30 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(status)
 }
 
+type jobsResponse struct {
+	Registered []scheduler.JobDetail       `json:"registered"`
+	Skipped    []scanner.SkippedAnnotation `json:"skipped"`
+}
+
 func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	provider := s.statusProvider
 	s.mu.RUnlock()
 
-	var jobs []scheduler.JobDetail
+	resp := jobsResponse{}
 	if provider != nil {
-		jobs = provider.GetJobDetails()
+		resp.Registered = provider.GetJobDetails()
+		resp.Skipped = provider.GetSkippedAnnotations()
 	}
-	if jobs == nil {
-		jobs = []scheduler.JobDetail{}
+	if resp.Registered == nil {
+		resp.Registered = []scheduler.JobDetail{}
+	}
+	if resp.Skipped == nil {
+		resp.Skipped = []scanner.SkippedAnnotation{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(jobs)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // configResponse is the public configuration exposed by /config.

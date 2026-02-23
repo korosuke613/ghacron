@@ -9,6 +9,7 @@ import (
 
 	"github.com/korosuke613/ghacron/config"
 	"github.com/korosuke613/ghacron/github"
+	"github.com/korosuke613/ghacron/scanner"
 
 	"github.com/robfig/cron/v3"
 )
@@ -30,9 +31,10 @@ type Scheduler struct {
 	cron       *cron.Cron
 	config     *config.ReconcileConfig
 
-	mu             sync.RWMutex
-	registeredJobs map[github.CronJobKey]cron.EntryID
-	lastReconcile  time.Time
+	mu                 sync.RWMutex
+	registeredJobs     map[github.CronJobKey]cron.EntryID
+	lastReconcile      time.Time
+	skippedAnnotations []scanner.SkippedAnnotation
 }
 
 // New creates a new Scheduler.
@@ -155,6 +157,20 @@ func (s *Scheduler) GetRegisteredKeys() []github.CronJobKey {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+// SetSkippedAnnotations updates the skipped annotations from the last scan.
+func (s *Scheduler) SetSkippedAnnotations(skipped []scanner.SkippedAnnotation) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.skippedAnnotations = skipped
+}
+
+// GetSkippedAnnotations returns annotations that failed validation (StatusProvider).
+func (s *Scheduler) GetSkippedAnnotations() []scanner.SkippedAnnotation {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.skippedAnnotations
 }
 
 // RunReconcileLoop runs the reconciliation loop.
