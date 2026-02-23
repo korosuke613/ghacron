@@ -117,11 +117,11 @@ on:
 
 ### Configuration
 
-`config/config.yaml` にYAMLで記述。`${ENV_VAR}` で環境変数展開。
+configファイル（デフォルト: `ghacron.yaml`）はオプション。なくても環境変数とデフォルト値で起動可能。YAML内では`${ENV_VAR}`で環境変数展開。
 
 必須環境変数:
 - `GH_APP_ID`: GitHub App ID
-- `GH_APP_PRIVATE_KEY`: GitHub App Private Key PEM（または `private_key_path` でファイル指定）
+- `GH_APP_PRIVATE_KEY`: GitHub App Private Key PEM（または configファイルで `private_key` / `private_key_path` を指定）
 
 ### Test Structure
 

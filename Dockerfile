@@ -23,9 +23,6 @@ FROM gcr.io/distroless/static-debian12
 # Copy the binary from builder stage
 COPY --from=builder /app/ghacron /app/ghacron
 
-# Copy configuration file
-COPY config/config.yaml /app/config/
-
 WORKDIR /app
 
 # Expose the API port

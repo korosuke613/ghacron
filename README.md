@@ -35,22 +35,31 @@ on:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-config` | `config/config.yaml` | Path to config file |
+| `-config` | `ghacron.yaml` | Path to config file |
 | `-version` | — | Show version and exit |
 
 The default config path can also be overridden via the `GHACRON_CONFIG` environment variable.
 
 ```bash
-# Basic
+# Binary
 GH_APP_ID=123456 GH_APP_PRIVATE_KEY="$(cat key.pem)" ./ghacron
 
-# Custom config path
-./ghacron -config /etc/ghacron/config.yaml
+# Binary with custom config
+./ghacron -config /etc/ghacron/ghacron.yaml
+
+# Docker
+docker run -e GH_APP_ID=123456 -e GH_APP_PRIVATE_KEY="$(cat key.pem)" ghcr.io/korosuke613/ghacron
+
+# Docker with custom config
+docker run -v ./ghacron.yaml:/app/ghacron.yaml \
+  -e GH_APP_ID=123456 -e GH_APP_PRIVATE_KEY="$(cat key.pem)" ghcr.io/korosuke613/ghacron
 ```
 
 ## Configuration
 
-Config file format:
+The config file is optional. Without it, ghacron runs with built-in defaults and environment variables (`GH_APP_ID`, `GH_APP_PRIVATE_KEY`).
+
+Config file example:
 
 ```yaml
 github:
@@ -132,8 +141,12 @@ Public configuration (credentials are not exposed).
 # Build
 docker build -t ghacron .
 
-# Run
+# Run (env vars only, no config file needed)
 docker run -e GH_APP_ID=123456 -e GH_APP_PRIVATE_KEY="$(cat key.pem)" ghacron
+
+# Run with custom config file
+docker run -v ./ghacron.yaml:/app/ghacron.yaml \
+  -e GH_APP_ID=123456 -e GH_APP_PRIVATE_KEY="$(cat key.pem)" ghacron
 ```
 
 ## Kubernetes Deployment
@@ -150,6 +163,20 @@ containers:
       secretKeyRef:
         name: ghacron-secrets
         key: private-key
+  volumeMounts:
+  - name: config
+    mountPath: /app/ghacron.yaml
+    subPath: ghacron.yaml
+volumes:
+- name: config
+  configMap:
+    name: ghacron-config
+```
+
+To use a custom config, create a ConfigMap:
+
+```bash
+kubectl create configmap ghacron-config --from-file=ghacron.yaml
 ```
 
 ## Development

@@ -74,17 +74,27 @@ type rawConfig struct {
 }
 
 // Load reads and parses the config file.
+// If the file does not exist, the application falls back to environment
+// variables and built-in defaults so that a config file is not required.
 func Load(configPath string) (*Config, error) {
+	var raw rawConfig
+
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
+		slog.Info("config file not found, using defaults and environment variables", "path", configPath)
+	} else {
+		expanded := os.ExpandEnv(string(data))
+		if err := yaml.Unmarshal([]byte(expanded), &raw); err != nil {
+			return nil, fmt.Errorf("failed to parse config file: %w", err)
+		}
 	}
 
-	expanded := os.ExpandEnv(string(data))
-
-	var raw rawConfig
-	if err := yaml.Unmarshal([]byte(expanded), &raw); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	// Fill github.app_id from env if not set in file
+	if raw.GitHub.AppID == "" {
+		raw.GitHub.AppID = os.Getenv("GH_APP_ID")
 	}
 
 	appID, err := strconv.ParseInt(raw.GitHub.AppID, 10, 64)
@@ -151,6 +161,9 @@ func (c *Config) validate() error {
 	if c.WebAPI.Port <= 0 {
 		c.WebAPI.Port = 8080
 	}
+	if c.WebAPI.Host == "" {
+		c.WebAPI.Host = "0.0.0.0"
+	}
 	switch strings.ToLower(c.Log.Level) {
 	case "debug", "info", "warn", "error", "":
 		// OK
@@ -171,5 +184,5 @@ func GetDefaultConfigPath() string {
 	if path := os.Getenv("GHACRON_CONFIG"); path != "" {
 		return path
 	}
-	return "config/config.yaml"
+	return "ghacron.yaml"
 }
