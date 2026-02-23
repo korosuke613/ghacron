@@ -37,7 +37,7 @@ go build -o ghacron main.go
 go build -ldflags="-s -w -X main.version=$(git describe --tags --always)" -o ghacron main.go
 
 # Run (requires GitHub App credentials)
-GH_APP_ID=123456 GH_APP_PRIVATE_KEY="$(cat key.pem)" go run main.go
+GHACRON_APP_ID=123456 GHACRON_APP_PRIVATE_KEY="$(cat key.pem)" go run main.go
 
 # Test all
 go test ./...
@@ -74,9 +74,10 @@ GitHub Actions の `schedule` イベントの遅延問題を解決するGoスタ
 ### Startup Flow
 
 ```
-main.go: CLI flags → bootstrap slog (JSON) → config.Load → re-init slog
-  → github.NewClient (App JWT auth) → scheduler.New → api.NewServer
-  → reconcile loop (5min ticker, immediate first run) → signal wait → graceful shutdown
+main.go: -version flag → bootstrap slog (JSON) → config.Load (env vars)
+  → re-init slog → github.NewClient (App JWT auth) → scheduler.New
+  → api.NewServer → reconcile loop (5min ticker, immediate first run)
+  → signal wait → graceful shutdown
 ```
 
 ### Reconciliation Loop (core mechanism)
@@ -91,7 +92,7 @@ Reconcile() → scanner.ScanAll() → diff(desired, actual) → AddJob / RemoveJ
 
 | Package | 責務 |
 |---------|------|
-| `config/` | YAML設定管理。`os.ExpandEnv`で環境変数展開 |
+| `config/` | `GHACRON_*` 環境変数による設定管理 |
 | `github/` | GitHub App認証（自作JWT RS256 + Installation Tokenキャッシュ）、go-github/v68ラッパー |
 | `scanner/` | ワークフローファイルスキャン。正規表現でアノテーション抽出、`workflow_dispatch`存在チェック |
 | `scheduler/` | robfig/cron/v3によるcronジョブ管理、Reconciler、状態管理（GitHub Actions Variables） |
@@ -124,11 +125,11 @@ on:
 
 ### Configuration
 
-configファイル（デフォルト: `ghacron.yaml`）はオプション。なくても環境変数とデフォルト値で起動可能。YAML内では`${ENV_VAR}`で環境変数展開。
+全パラメータを `GHACRON_*` プレフィックスの環境変数で設定。configファイル不要。
 
 必須環境変数:
-- `GH_APP_ID`: GitHub App ID
-- `GH_APP_PRIVATE_KEY`: GitHub App Private Key PEM（または configファイルで `private_key` / `private_key_path` を指定）
+- `GHACRON_APP_ID`: GitHub App ID
+- `GHACRON_APP_PRIVATE_KEY` または `GHACRON_APP_PRIVATE_KEY_PATH`: GitHub App Private Key
 
 ### Test Structure
 
