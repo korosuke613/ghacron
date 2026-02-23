@@ -49,8 +49,14 @@ func main() {
 		log.Fatalf("GitHubクライアントの初期化に失敗: %v", err)
 	}
 
+	// タイムゾーンを読み込み
+	loc, err := time.LoadLocation(cfg.Reconcile.Timezone)
+	if err != nil {
+		log.Fatalf("タイムゾーンの読み込みに失敗: %v", err)
+	}
+
 	// スケジューラーを初期化
-	sched := scheduler.New(ghClient, &cfg.Reconcile)
+	sched := scheduler.New(ghClient, &cfg.Reconcile, loc)
 
 	// APIサーバーを初期化・開始
 	apiServer := api.NewServer(&cfg.WebAPI, cfg)
@@ -85,11 +91,4 @@ func main() {
 
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-
-	loc, err := time.LoadLocation("Asia/Tokyo")
-	if err != nil {
-		log.Printf("タイムゾーン設定に失敗: %v", err)
-	} else {
-		time.Local = loc
-	}
 }

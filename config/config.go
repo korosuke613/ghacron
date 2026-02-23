@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -25,9 +26,10 @@ type GitHubConfig struct {
 
 // ReconcileConfig Reconciliation設定
 type ReconcileConfig struct {
-	IntervalMinutes       int  `yaml:"interval_minutes"`
-	DuplicateGuardSeconds int  `yaml:"duplicate_guard_seconds"`
-	DryRun                bool `yaml:"dry_run"`
+	IntervalMinutes       int    `yaml:"interval_minutes"`
+	DuplicateGuardSeconds int    `yaml:"duplicate_guard_seconds"`
+	DryRun                bool   `yaml:"dry_run"`
+	Timezone              string `yaml:"timezone"`
 }
 
 // LogConfig ログ設定
@@ -127,6 +129,12 @@ func (c *Config) validate() error {
 	}
 	if c.Reconcile.DuplicateGuardSeconds <= 0 {
 		c.Reconcile.DuplicateGuardSeconds = 60
+	}
+	if c.Reconcile.Timezone == "" {
+		c.Reconcile.Timezone = "UTC"
+	}
+	if _, err := time.LoadLocation(c.Reconcile.Timezone); err != nil {
+		return fmt.Errorf("reconcile.timezone が不正です (%q): %w", c.Reconcile.Timezone, err)
 	}
 	if c.WebAPI.Port <= 0 {
 		c.WebAPI.Port = 8080

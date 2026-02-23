@@ -7,6 +7,7 @@ reconcile:
   interval_minutes: 5
   duplicate_guard_seconds: 60
   dry_run: false
+  timezone: "UTC"
 
 log:
   level: "info"

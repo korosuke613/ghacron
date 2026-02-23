@@ -36,9 +36,9 @@ type Scheduler struct {
 }
 
 // New 新しいスケジューラーを作成
-func New(client GitHubClient, cfg *config.ReconcileConfig) *Scheduler {
+func New(client GitHubClient, cfg *config.ReconcileConfig, loc *time.Location) *Scheduler {
 	// 5フィールド標準cron（WithSecondsなし）
-	c := cron.New()
+	c := cron.New(cron.WithLocation(loc))
 
 	s := &Scheduler{
 		client:         client,

@@ -74,7 +74,7 @@ func (m *mockClient) GetFileContent(_ context.Context, _, _, _, _ string) (strin
 func newTestScheduler(client GitHubClient, cfg *config.ReconcileConfig) *Scheduler {
 	return &Scheduler{
 		client:         client,
-		cron:           cron.New(),
+		cron:           cron.New(cron.WithLocation(time.UTC)),
 		config:         cfg,
 		registeredJobs: make(map[github.CronJobKey]cron.EntryID),
 	}

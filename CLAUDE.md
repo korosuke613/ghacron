@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code when working with this application.
 
+コミットメッセージ、プルリクエストは英語で書くこと。
+
 ## Common Commands
 
 ### Development
