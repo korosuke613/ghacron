@@ -2,7 +2,7 @@ package scanner
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/korosuke613/ghacron/github"
 
@@ -42,20 +42,24 @@ func (s *Scanner) ScanAll(ctx context.Context) (*ScanResult, error) {
 		return nil, err
 	}
 
-	log.Printf("スキャン対象: %d リポジトリ", len(repos))
+	slog.Info("スキャン対象", "repo_count", len(repos))
 
 	result := &ScanResult{}
 
 	for _, repo := range repos {
 		annotations, err := s.scanRepo(ctx, repo)
 		if err != nil {
-			log.Printf("リポジトリスキャンに失敗 (%s/%s): %v", repo.Owner, repo.Name, err)
+			slog.Error("リポジトリスキャンに失敗",
+				"owner", repo.Owner,
+				"repo", repo.Name,
+				"error", err,
+			)
 			continue
 		}
 		result.Annotations = append(result.Annotations, annotations...)
 	}
 
-	log.Printf("スキャン完了: %d アノテーション検出", len(result.Annotations))
+	slog.Info("スキャン完了", "annotation_count", len(result.Annotations))
 	return result, nil
 }
 
@@ -75,7 +79,12 @@ func (s *Scanner) scanRepo(ctx context.Context, repo github.Repository) ([]githu
 	for _, file := range files {
 		content, err := s.client.GetFileContent(ctx, repo.Owner, repo.Name, file.Path, repo.DefaultBranch)
 		if err != nil {
-			log.Printf("ファイル読取に失敗 (%s/%s/%s): %v", repo.Owner, repo.Name, file.Path, err)
+			slog.Error("ファイル読取に失敗",
+				"owner", repo.Owner,
+				"repo", repo.Name,
+				"path", file.Path,
+				"error", err,
+			)
 			continue
 		}
 
@@ -104,8 +113,13 @@ func (s *Scanner) parseFile(repo github.Repository, file github.WorkflowFile, co
 	for _, expr := range cronExprs {
 		// cron式の妥当性チェック
 		if _, err := s.cronParser.Parse(expr); err != nil {
-			log.Printf("不正なcron式をスキップ (%s/%s/%s): %q: %v",
-				repo.Owner, repo.Name, file.Name, expr, err)
+			slog.Warn("不正なcron式をスキップ",
+				"owner", repo.Owner,
+				"repo", repo.Name,
+				"workflow_file", file.Name,
+				"cron_expr", expr,
+				"error", err,
+			)
 			continue
 		}
 

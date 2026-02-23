@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -34,7 +36,22 @@ type ReconcileConfig struct {
 
 // LogConfig ログ設定
 type LogConfig struct {
-	Level string `yaml:"level"`
+	Level  string `yaml:"level"`
+	Format string `yaml:"format"`
+}
+
+// SlogLevel Level文字列をslog.Levelに変換
+func (lc *LogConfig) SlogLevel() slog.Level {
+	switch strings.ToLower(lc.Level) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
 
 // WebAPIConfig WebAPI設定
@@ -138,6 +155,18 @@ func (c *Config) validate() error {
 	}
 	if c.WebAPI.Port <= 0 {
 		c.WebAPI.Port = 8080
+	}
+	switch strings.ToLower(c.Log.Level) {
+	case "debug", "info", "warn", "error", "":
+		// OK
+	default:
+		return fmt.Errorf("log.level が不正です (%q): debug, info, warn, error のいずれかを指定してください", c.Log.Level)
+	}
+	switch strings.ToLower(c.Log.Format) {
+	case "json", "text", "":
+		// OK
+	default:
+		return fmt.Errorf("log.format が不正です (%q): json, text のいずれかを指定してください", c.Log.Format)
 	}
 	return nil
 }

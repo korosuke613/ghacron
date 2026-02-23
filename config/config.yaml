@@ -11,6 +11,7 @@ reconcile:
 
 log:
   level: "info"
+  format: "json"
 
 webapi:
   enabled: true

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"sync"
@@ -50,7 +50,7 @@ func (s *Server) SetStatusProvider(provider StatusProvider) {
 // Start APIサーバーを開始
 func (s *Server) Start() error {
 	if !s.config.Enabled {
-		log.Println("WebAPIサーバーは無効です")
+		slog.Info("WebAPIサーバーは無効です")
 		return nil
 	}
 
@@ -70,9 +70,9 @@ func (s *Server) Start() error {
 	}
 
 	go func() {
-		log.Printf("APIサーバーを開始: http://%s", addr)
+		slog.Info("APIサーバーを開始", "addr", addr)
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("APIサーバーエラー: %v", err)
+			slog.Error("APIサーバーエラー", "error", err)
 		}
 	}()
 
@@ -87,7 +87,7 @@ func (s *Server) Stop() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := s.httpServer.Shutdown(ctx); err != nil {
-		log.Printf("APIサーバーの停止に失敗: %v", err)
+		slog.Error("APIサーバーの停止に失敗", "error", err)
 	}
 }
 
@@ -172,7 +172,8 @@ type configReconcile struct {
 }
 
 type configLog struct {
-	Level string `json:"level"`
+	Level  string `json:"level"`
+	Format string `json:"format"`
 }
 
 type configWebAPI struct {
@@ -196,7 +197,8 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			DryRun:                appCfg.Reconcile.DryRun,
 		},
 		Log: configLog{
-			Level: appCfg.Log.Level,
+			Level:  appCfg.Log.Level,
+			Format: appCfg.Log.Format,
 		},
 		WebAPI: configWebAPI{
 			Enabled: appCfg.WebAPI.Enabled,

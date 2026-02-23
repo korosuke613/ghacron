@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -141,7 +141,12 @@ func (c *Client) DispatchWorkflow(ctx context.Context, owner, repo, workflowFile
 			owner, repo, workflowFile, err)
 	}
 
-	log.Printf("workflow_dispatch を発火: %s/%s %s (ref=%s)", owner, repo, workflowFile, ref)
+	slog.Info("workflow_dispatch を発火",
+		"owner", owner,
+		"repo", repo,
+		"workflow_file", workflowFile,
+		"ref", ref,
+	)
 	return nil
 }
 

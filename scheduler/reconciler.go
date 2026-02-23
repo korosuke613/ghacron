@@ -2,7 +2,7 @@ package scheduler
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/korosuke613/ghacron/config"
 	"github.com/korosuke613/ghacron/github"
@@ -67,7 +67,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 	// 5. Apply
 	for _, annotation := range toAdd {
 		if err := r.scheduler.AddJob(annotation); err != nil {
-			log.Printf("ジョブ追加に失敗: %v", err)
+			slog.Error("ジョブ追加に失敗", "error", err)
 		}
 	}
 
@@ -77,8 +77,11 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 
 	// 6. Log summary
 	if len(toAdd) > 0 || len(toRemove) > 0 {
-		log.Printf("Reconcile結果: +%d追加, -%d削除, 合計%d desired",
-			len(toAdd), len(toRemove), len(desiredMap))
+		slog.Info("Reconcile結果",
+			"added", len(toAdd),
+			"removed", len(toRemove),
+			"desired_total", len(desiredMap),
+		)
 	}
 
 	return nil
