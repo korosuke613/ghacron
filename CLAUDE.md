@@ -115,6 +115,12 @@ on:
 
 `workflow_dispatch` が `on:` セクション内に存在し、`# ghacron: "cron_expr"` コメントがファイル内にあることが必要条件。1ファイル複数アノテーション可。
 
+ジョブ単位のタイムゾーン指定（`CRON_TZ=`/`TZ=` プレフィックス）:
+```yaml
+  # ghacron: "CRON_TZ=Asia/Tokyo 0 8 * * *"
+```
+グローバル `reconcile.timezone` よりジョブ単位の指定が優先。`robfig/cron/v3` の組み込みTZプレフィックス機能を利用。
+
 ### Configuration
 
 configファイル（デフォルト: `ghacron.yaml`）はオプション。なくても環境変数とデフォルト値で起動可能。YAML内では`${ENV_VAR}`で環境変数展開。

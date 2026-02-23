@@ -20,6 +20,15 @@ on:
 - `workflow_dispatch:` must be included under `on:`
 - Multiple annotations per file are supported
 - Cron expressions use the standard 5-field format (minute hour day month weekday)
+- Per-workflow timezone override via `CRON_TZ=` or `TZ=` prefix:
+
+```yaml
+on:
+  # ghacron: "CRON_TZ=Asia/Tokyo 0 8 * * *"
+  workflow_dispatch:
+```
+
+When specified, the prefix overrides the global `reconcile.timezone` setting for that job. The value must be a valid [IANA timezone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
 
 ## Requirements
 
@@ -108,18 +117,29 @@ Service status including uptime and reconciliation state.
 
 ### `GET /jobs`
 
-List of registered cron jobs with next scheduled run time.
+Registered cron jobs and annotations that failed validation.
 
 ```json
-[
-  {
-    "owner": "myorg",
-    "repo": "myrepo",
-    "workflow_file": "ci.yml",
-    "cron_expr": "0 8 * * *",
-    "next_run": "2026-02-25T08:00:00Z"
-  }
-]
+{
+  "registered": [
+    {
+      "owner": "myorg",
+      "repo": "myrepo",
+      "workflow_file": "ci.yml",
+      "cron_expr": "0 8 * * *",
+      "next_run": "2026-02-25T08:00:00Z"
+    }
+  ],
+  "skipped": [
+    {
+      "owner": "myorg",
+      "repo": "myrepo",
+      "workflow_file": "deploy.yml",
+      "cron_expr": "CRON_TZ=Asis/Tokyo 0 8 * * *",
+      "reason": "provided bad location Asis/Tokyo: unknown time zone Asis/Tokyo"
+    }
+  ]
+}
 ```
 
 ### `GET /config`
