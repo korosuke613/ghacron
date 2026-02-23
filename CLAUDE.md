@@ -4,6 +4,23 @@ This file provides guidance to Claude Code when working with this application.
 
 コミットメッセージ、プルリクエストは英語で書くこと。
 
+## Commit Convention
+
+コミットメッセージは [Conventional Commits](https://www.conventionalcommits.org/) に従うこと。
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+- **type**: `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `chore`, `perf`, `build`
+- **scope**: 使用しない
+- **description**: 変更の要約（英語、小文字始まり、末尾ピリオドなし）
+- **breaking change**: 破壊的変更がある場合は `!` を付与（例: `feat!: rename annotation syntax`）
+
 ## Common Commands
 
 ### Development
