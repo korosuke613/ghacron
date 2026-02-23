@@ -1,7 +1,6 @@
 name: CI
 
 on:
-  # ghacron: "52 18 * * *"
   workflow_dispatch:
   push:
     branches:
