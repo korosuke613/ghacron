@@ -27,9 +27,30 @@ on:
 - GitHub App (App ID + Private Key)
   - Required permissions: `contents: read`, `actions: write`, `variables: write`, `metadata: read`
 
+## Usage
+
+```bash
+./ghacron [options]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-config` | `config/config.yaml` | Path to config file |
+| `-version` | — | Show version and exit |
+
+The default config path can also be overridden via the `GHACRON_CONFIG` environment variable.
+
+```bash
+# Basic
+GH_APP_ID=123456 GH_APP_PRIVATE_KEY="$(cat key.pem)" ./ghacron
+
+# Custom config path
+./ghacron -config /etc/ghacron/config.yaml
+```
+
 ## Configuration
 
-Configure via `config/config.yaml`:
+Config file format:
 
 ```yaml
 github:
@@ -44,11 +65,91 @@ reconcile:
 
 log:
   level: "info"
+  format: "json"            # "json" or "text"
 
 webapi:
   enabled: true
   host: "0.0.0.0"
   port: 8080
+```
+
+## API Endpoints
+
+The web API server is enabled by default on port 8080. All responses are JSON.
+
+### `GET /healthz`
+
+Health check for liveness probes.
+
+```json
+{"status": "ok"}
+```
+
+### `GET /status`
+
+Service status including uptime and reconciliation state.
+
+```json
+{
+  "uptime_seconds": 3600.5,
+  "registered_jobs": 3,
+  "last_reconcile": "2026-02-24T09:00:00Z"
+}
+```
+
+### `GET /jobs`
+
+List of registered cron jobs with next scheduled run time.
+
+```json
+[
+  {
+    "owner": "myorg",
+    "repo": "myrepo",
+    "workflow_file": "ci.yml",
+    "cron_expr": "0 8 * * *",
+    "next_run": "2026-02-25T08:00:00Z"
+  }
+]
+```
+
+### `GET /config`
+
+Public configuration (credentials are not exposed).
+
+```json
+{
+  "github": {"app_id": 123456},
+  "reconcile": {"interval_minutes": 5, "duplicate_guard_seconds": 60, "dry_run": false},
+  "log": {"level": "info", "format": "json"},
+  "webapi": {"enabled": true, "host": "0.0.0.0", "port": 8080}
+}
+```
+
+## Docker
+
+```bash
+# Build
+docker build -t ghacron .
+
+# Run
+docker run -e GH_APP_ID=123456 -e GH_APP_PRIVATE_KEY="$(cat key.pem)" ghacron
+```
+
+## Kubernetes Deployment
+
+```yaml
+containers:
+- name: ghacron
+  image: ghcr.io/korosuke613/ghacron:latest
+  env:
+  - name: GH_APP_ID
+    value: "123456"
+  - name: GH_APP_PRIVATE_KEY
+    valueFrom:
+      secretKeyRef:
+        name: ghacron-secrets
+        key: private-key
 ```
 
 ## Development
@@ -79,41 +180,6 @@ Releases are triggered exclusively by GitHub Release events — pushing to `main
 |---|---|---|---|
 | Stable | `v1.0.0` | `1.0.0`, `1.0`, `latest` | Yes |
 | Release candidate | `v1.0.0-rc.1` | `1.0.0-rc.1` | No |
-
-## Docker
-
-```bash
-# Build
-docker build -t ghacron .
-
-# Run
-docker run -e GH_APP_ID=123456 -e GH_APP_PRIVATE_KEY="$(cat key.pem)" ghacron
-```
-
-## Kubernetes Deployment
-
-```yaml
-containers:
-- name: ghacron
-  image: ghcr.io/korosuke613/ghacron:latest
-  env:
-  - name: GH_APP_ID
-    value: "123456"
-  - name: GH_APP_PRIVATE_KEY
-    valueFrom:
-      secretKeyRef:
-        name: ghacron-secrets
-        key: private-key
-```
-
-## API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/healthz` | GET | Health check |
-| `/status` | GET | Service status (registered cron job count, etc.) |
-| `/jobs` | GET | List of registered cron jobs |
-| `/config` | GET | Public configuration info |
 
 ## Architecture
 
