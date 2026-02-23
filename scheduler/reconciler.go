@@ -67,7 +67,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 	// 5. Apply
 	for _, annotation := range toAdd {
 		if err := r.scheduler.AddJob(annotation); err != nil {
-			slog.Error("ジョブ追加に失敗", "error", err)
+			slog.Error("failed to add job", "error", err)
 		}
 	}
 
@@ -77,7 +77,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 
 	// 6. Log summary
 	if len(toAdd) > 0 || len(toRemove) > 0 {
-		slog.Info("Reconcile結果",
+		slog.Info("reconcile result",
 			"added", len(toAdd),
 			"removed", len(toRemove),
 			"desired_total", len(desiredMap),

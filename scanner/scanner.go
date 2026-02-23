@@ -42,14 +42,14 @@ func (s *Scanner) ScanAll(ctx context.Context) (*ScanResult, error) {
 		return nil, err
 	}
 
-	slog.Info("スキャン対象", "repo_count", len(repos))
+	slog.Info("scanning repositories", "repo_count", len(repos))
 
 	result := &ScanResult{}
 
 	for _, repo := range repos {
 		annotations, err := s.scanRepo(ctx, repo)
 		if err != nil {
-			slog.Error("リポジトリスキャンに失敗",
+			slog.Error("failed to scan repository",
 				"owner", repo.Owner,
 				"repo", repo.Name,
 				"error", err,
@@ -59,7 +59,7 @@ func (s *Scanner) ScanAll(ctx context.Context) (*ScanResult, error) {
 		result.Annotations = append(result.Annotations, annotations...)
 	}
 
-	slog.Info("スキャン完了", "annotation_count", len(result.Annotations))
+	slog.Info("scan completed", "annotation_count", len(result.Annotations))
 	return result, nil
 }
 
@@ -79,7 +79,7 @@ func (s *Scanner) scanRepo(ctx context.Context, repo github.Repository) ([]githu
 	for _, file := range files {
 		content, err := s.client.GetFileContent(ctx, repo.Owner, repo.Name, file.Path, repo.DefaultBranch)
 		if err != nil {
-			slog.Error("ファイル読取に失敗",
+			slog.Error("failed to read file",
 				"owner", repo.Owner,
 				"repo", repo.Name,
 				"path", file.Path,
@@ -113,7 +113,7 @@ func (s *Scanner) parseFile(repo github.Repository, file github.WorkflowFile, co
 	for _, expr := range cronExprs {
 		// cron式の妥当性チェック
 		if _, err := s.cronParser.Parse(expr); err != nil {
-			slog.Warn("不正なcron式をスキップ",
+			slog.Warn("skipping invalid cron expression",
 				"owner", repo.Owner,
 				"repo", repo.Name,
 				"workflow_file", file.Name,

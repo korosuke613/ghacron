@@ -50,7 +50,7 @@ func (s *Server) SetStatusProvider(provider StatusProvider) {
 // Start APIサーバーを開始
 func (s *Server) Start() error {
 	if !s.config.Enabled {
-		slog.Info("WebAPIサーバーは無効です")
+		slog.Info("web API server is disabled")
 		return nil
 	}
 
@@ -70,9 +70,9 @@ func (s *Server) Start() error {
 	}
 
 	go func() {
-		slog.Info("APIサーバーを開始", "addr", addr)
+		slog.Info("API server started", "addr", addr)
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("APIサーバーエラー", "error", err)
+			slog.Error("API server error", "error", err)
 		}
 	}()
 
@@ -87,7 +87,7 @@ func (s *Server) Stop() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := s.httpServer.Shutdown(ctx); err != nil {
-		slog.Error("APIサーバーの停止に失敗", "error", err)
+		slog.Error("failed to stop API server", "error", err)
 	}
 }
 

@@ -141,7 +141,7 @@ func (c *Client) DispatchWorkflow(ctx context.Context, owner, repo, workflowFile
 			owner, repo, workflowFile, err)
 	}
 
-	slog.Info("workflow_dispatch を発火",
+	slog.Info("dispatched workflow_dispatch",
 		"owner", owner,
 		"repo", repo,
 		"workflow_file", workflowFile,

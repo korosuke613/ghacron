@@ -34,32 +34,32 @@ func main() {
 	// 設定ファイルを読み込み
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "設定ファイルの読み込みに失敗: %v\n", err)
+		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
 		os.Exit(1)
 	}
 
 	// 構造化ロガーを初期化
 	initLogger(&cfg.Log)
 
-	slog.Info("ghacron を開始します", "version", version)
+	slog.Info("starting ghacron", "version", version)
 
 	// GitHub App クライアントを初期化
 	privateKey, err := cfg.GetPrivateKey()
 	if err != nil {
-		slog.Error("秘密鍵の取得に失敗", "error", err)
+		slog.Error("failed to get private key", "error", err)
 		os.Exit(1)
 	}
 
 	ghClient, err := github.NewClient(cfg.GitHub.AppID, privateKey)
 	if err != nil {
-		slog.Error("GitHubクライアントの初期化に失敗", "error", err)
+		slog.Error("failed to initialize GitHub client", "error", err)
 		os.Exit(1)
 	}
 
 	// タイムゾーンを読み込み
 	loc, err := time.LoadLocation(cfg.Reconcile.Timezone)
 	if err != nil {
-		slog.Error("タイムゾーンの読み込みに失敗", "error", err)
+		slog.Error("failed to load timezone", "error", err)
 		os.Exit(1)
 	}
 
@@ -70,7 +70,7 @@ func main() {
 	apiServer := api.NewServer(&cfg.WebAPI, cfg)
 	apiServer.SetStatusProvider(sched)
 	if err := apiServer.Start(); err != nil {
-		slog.Error("APIサーバーの開始に失敗", "error", err)
+		slog.Error("failed to start API server", "error", err)
 		os.Exit(1)
 	}
 
@@ -80,7 +80,7 @@ func main() {
 
 	go sched.RunReconcileLoop(ctx, time.Duration(cfg.Reconcile.IntervalMinutes)*time.Minute)
 
-	slog.Info("ghacron が開始されました",
+	slog.Info("ghacron started",
 		"interval_minutes", cfg.Reconcile.IntervalMinutes,
 		"duplicate_guard_seconds", cfg.Reconcile.DuplicateGuardSeconds,
 		"dry_run", cfg.Reconcile.DryRun,
@@ -91,13 +91,13 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	sig := <-sigChan
-	slog.Info("シグナルを受信、サービスを停止します", "signal", sig.String())
+	slog.Info("received signal, shutting down", "signal", sig.String())
 
 	cancel()
 	sched.Stop()
 	apiServer.Stop()
 
-	slog.Info("ghacron を停止しました")
+	slog.Info("ghacron stopped")
 }
 
 func initLogger(logCfg *config.LogConfig) {
