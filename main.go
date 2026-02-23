@@ -16,7 +16,7 @@ import (
 	"github.com/korosuke613/ghacron/scheduler"
 )
 
-const Version = "0.1.0"
+var version = "dev"
 
 func main() {
 	var (
@@ -26,7 +26,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("ghacron v%s\n", Version)
+		fmt.Printf("ghacron v%s\n", version)
 		return
 	}
 
@@ -36,7 +36,7 @@ func main() {
 		log.Fatalf("設定ファイルの読み込みに失敗: %v", err)
 	}
 
-	log.Printf("ghacron v%s を開始します...", Version)
+	log.Printf("ghacron v%s を開始します...", version)
 
 	// GitHub App クライアントを初期化
 	privateKey, err := cfg.GetPrivateKey()

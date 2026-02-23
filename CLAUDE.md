@@ -40,7 +40,7 @@ go test ./...
 
 ### Production Build
 ```bash
-go build -ldflags="-s -w" -o ghacron main.go
+go build -ldflags="-s -w -X main.version=$(git describe --tags --always)" -o ghacron main.go
 ```
 
 ### API Testing

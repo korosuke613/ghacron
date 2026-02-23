@@ -1,6 +1,8 @@
 # Build stage
 FROM golang:1.25-alpine AS builder
 
+ARG VERSION=dev
+
 WORKDIR /app
 
 # Copy Go modules files
@@ -13,7 +15,7 @@ RUN go mod download
 COPY . .
 
 # Build the application (CGO disabled for static binary)
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o ghacron main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X main.version=${VERSION}" -o ghacron main.go
 
 # Runtime stage using distroless (minimal attack surface)
 FROM gcr.io/distroless/static-debian12
