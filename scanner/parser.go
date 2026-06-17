@@ -61,8 +61,9 @@ func HasWorkflowDispatch(content string) bool {
 }
 
 // isOnSectionStart reports whether a trimmed line begins the on: section.
+// HasPrefix already matches the exact "on:" string, so no equality check is needed.
 func isOnSectionStart(trimmed string) bool {
-	return trimmed == "on:" || strings.HasPrefix(trimmed, "on:")
+	return strings.HasPrefix(trimmed, "on:")
 }
 
 // isTopLevelKey reports whether a line is an unindented, non-empty entry, which
