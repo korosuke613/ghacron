@@ -225,78 +225,97 @@ func (s *Scheduler) createJobHandler(annotation github.CronAnnotation) func() {
 
 		stateManager := NewStateManager(s.client)
 
-		// Duplicate guard
-		lastDispatch, err := stateManager.GetLastDispatchTime(ctx, annotation)
-		canRollback := err == nil // rollback only if previous time was retrieved
-		if err != nil {
-			slog.Error("failed to get last dispatch time",
-				"owner", annotation.Owner,
-				"repo", annotation.Repo,
-				"workflow_file", annotation.WorkflowFile,
-				"error", err,
-			)
-			// Fail-open: proceed with dispatch on retrieval failure
-		} else if !lastDispatch.IsZero() {
-			elapsed := time.Since(lastDispatch)
-			guard := time.Duration(s.config.DuplicateGuardSeconds) * time.Second
-			if elapsed < guard {
-				slog.Info("duplicate guard: already dispatched",
-					"owner", annotation.Owner,
-					"repo", annotation.Repo,
-					"workflow_file", annotation.WorkflowFile,
-					"elapsed", elapsed.Round(time.Second).String(),
-					"guard", guard.String(),
-				)
-				return
-			}
+		lastDispatch, canRollback := s.loadLastDispatchTime(ctx, stateManager, annotation)
+		if s.isWithinDuplicateGuard(annotation, lastDispatch) {
+			return
 		}
 
-		// Dry-run mode
 		if s.config.DryRun {
 			slog.Info("[DRY-RUN] dispatch target",
-				"owner", annotation.Owner,
-				"repo", annotation.Repo,
-				"workflow_file", annotation.WorkflowFile,
-				"ref", annotation.Ref,
-				"cron_expr", annotation.CronExpr,
+				append(annotationLogArgs(annotation),
+					"ref", annotation.Ref,
+					"cron_expr", annotation.CronExpr,
+				)...,
 			)
 			return
 		}
 
-		// Persist dispatch time before dispatching (to prevent races)
-		now := time.Now()
-		if err := stateManager.SetLastDispatchTime(ctx, annotation, now); err != nil {
-			slog.Error("failed to save dispatch time",
-				"owner", annotation.Owner,
-				"repo", annotation.Repo,
-				"workflow_file", annotation.WorkflowFile,
-				"error", err,
-			)
-			// Skip dispatch to avoid potential duplicates
-			return
-		}
+		s.dispatchWithRollback(ctx, stateManager, annotation, lastDispatch, canRollback)
+	}
+}
 
-		// Fire workflow_dispatch
-		if err := s.client.DispatchWorkflow(ctx, annotation.Owner, annotation.Repo,
-			annotation.WorkflowFile, annotation.Ref); err != nil {
-			slog.Error("dispatch failed",
-				"owner", annotation.Owner,
-				"repo", annotation.Repo,
-				"workflow_file", annotation.WorkflowFile,
-				"error", err,
-			)
-			// Phantom guard prevention: rollback only if previous time was retrieved
-			if canRollback {
-				if rbErr := stateManager.SetLastDispatchTime(ctx, annotation, lastDispatch); rbErr != nil {
-					slog.Error("failed to rollback dispatch time",
-						"owner", annotation.Owner,
-						"repo", annotation.Repo,
-						"workflow_file", annotation.WorkflowFile,
-						"error", rbErr,
-					)
-				}
-			}
-			return
-		}
+// loadLastDispatchTime returns the last dispatch time and whether a rollback is
+// possible. On retrieval failure it fails open (rollback disabled) so dispatch
+// can still proceed.
+func (s *Scheduler) loadLastDispatchTime(ctx context.Context, sm *StateManager, annotation github.CronAnnotation) (time.Time, bool) {
+	lastDispatch, err := sm.GetLastDispatchTime(ctx, annotation)
+	if err != nil {
+		slog.Error("failed to get last dispatch time",
+			append(annotationLogArgs(annotation), "error", err)...,
+		)
+		return time.Time{}, false
+	}
+	return lastDispatch, true
+}
+
+// isWithinDuplicateGuard reports whether a dispatch happened too recently to
+// fire again, logging when the guard blocks.
+func (s *Scheduler) isWithinDuplicateGuard(annotation github.CronAnnotation, lastDispatch time.Time) bool {
+	if lastDispatch.IsZero() {
+		return false
+	}
+	elapsed := time.Since(lastDispatch)
+	guard := time.Duration(s.config.DuplicateGuardSeconds) * time.Second
+	if elapsed >= guard {
+		return false
+	}
+	slog.Info("duplicate guard: already dispatched",
+		append(annotationLogArgs(annotation),
+			"elapsed", elapsed.Round(time.Second).String(),
+			"guard", guard.String(),
+		)...,
+	)
+	return true
+}
+
+// dispatchWithRollback persists the dispatch time, fires the workflow, and rolls
+// back the saved time if the dispatch fails and a rollback is possible.
+func (s *Scheduler) dispatchWithRollback(ctx context.Context, sm *StateManager, annotation github.CronAnnotation, lastDispatch time.Time, canRollback bool) {
+	// Persist dispatch time before dispatching (to prevent races).
+	now := time.Now()
+	if err := sm.SetLastDispatchTime(ctx, annotation, now); err != nil {
+		slog.Error("failed to save dispatch time",
+			append(annotationLogArgs(annotation), "error", err)...,
+		)
+		// Skip dispatch to avoid potential duplicates.
+		return
+	}
+
+	err := s.client.DispatchWorkflow(ctx, annotation.Owner, annotation.Repo,
+		annotation.WorkflowFile, annotation.Ref)
+	if err == nil {
+		return
+	}
+	slog.Error("dispatch failed",
+		append(annotationLogArgs(annotation), "error", err)...,
+	)
+
+	// Phantom guard prevention: rollback only if a previous time was retrieved.
+	if !canRollback {
+		return
+	}
+	if rbErr := sm.SetLastDispatchTime(ctx, annotation, lastDispatch); rbErr != nil {
+		slog.Error("failed to rollback dispatch time",
+			append(annotationLogArgs(annotation), "error", rbErr)...,
+		)
+	}
+}
+
+// annotationLogArgs returns the slog attributes shared by dispatch log lines.
+func annotationLogArgs(annotation github.CronAnnotation) []any {
+	return []any{
+		"owner", annotation.Owner,
+		"repo", annotation.Repo,
+		"workflow_file", annotation.WorkflowFile,
 	}
 }

@@ -35,28 +35,39 @@ func HasWorkflowDispatch(content string) bool {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		// Detect start of on: section
-		if trimmed == "on:" || strings.HasPrefix(trimmed, "on:") {
+		// Detect start of on: section (handles workflow_dispatch on the same line).
+		if isOnSectionStart(trimmed) {
 			inOn = true
-			// workflow_dispatch on the same line as on:
 			if strings.Contains(trimmed, "workflow_dispatch") {
 				return true
 			}
 			continue
 		}
 
-		if inOn {
-			// End of on: section when indentation stops
-			if len(line) > 0 && line[0] != ' ' && line[0] != '\t' && trimmed != "" {
-				inOn = false
-				continue
-			}
-			// Detect workflow_dispatch
-			if strings.Contains(trimmed, "workflow_dispatch") {
-				return true
-			}
+		if !inOn {
+			continue
+		}
+		// A new top-level key ends the on: section.
+		if isTopLevelKey(line, trimmed) {
+			inOn = false
+			continue
+		}
+		if strings.Contains(trimmed, "workflow_dispatch") {
+			return true
 		}
 	}
 
 	return false
+}
+
+// isOnSectionStart reports whether a trimmed line begins the on: section.
+// HasPrefix already matches the exact "on:" string, so no equality check is needed.
+func isOnSectionStart(trimmed string) bool {
+	return strings.HasPrefix(trimmed, "on:")
+}
+
+// isTopLevelKey reports whether a line is an unindented, non-empty entry, which
+// marks the end of the current section.
+func isTopLevelKey(line, trimmed string) bool {
+	return len(line) > 0 && line[0] != ' ' && line[0] != '\t' && trimmed != ""
 }
