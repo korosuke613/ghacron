@@ -9,6 +9,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `.go`ファイル内の文字列（ログメッセージ、エラーメッセージ、コメント）はすべて英語で記述すること
 - CLAUDE.md、`plans/`、`.claude/` 配下のファイルは日本語OK（ランタイムに影響しないため）
 
+## Linting
+
+`.go` ファイルを変更したら、コミット前に `golangci-lint run ./...` を実行し、指摘ゼロを確認すること。整形系（gofumpt）は `golangci-lint run --fix ./...` で自動修正できる。設定は `.golangci.yml`、バージョンは `mise.toml` で固定。
+
+- ローカル: `golangci-lint run ./...` は全件表示（既存の指摘も含む）。
+- CI: `only-new-issues: true` で変更行の新規指摘のみブロッキング。既存の指摘は別途対応するまでグランドファザー化されている。
+
 ## Commit Convention
 
 コミットメッセージは [Conventional Commits](https://www.conventionalcommits.org/) に従うこと。
@@ -48,8 +55,12 @@ go test ./scheduler/
 # Test single function
 go test ./scheduler/ -run TestHandler_NormalDispatch
 
-# Vet
-go vet ./...
+# Lint (golangci-lint v2; version pinned in mise.toml)
+# mise auto-installs the pinned version on first run.
+golangci-lint run ./...
+
+# Auto-fix formatting (gofumpt) and other fixable issues
+golangci-lint run --fix ./...
 
 # Dependencies
 go mod tidy

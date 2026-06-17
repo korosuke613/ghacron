@@ -1,0 +1,38 @@
+# golangci-lint configuration (schema v2)
+# Version is pinned in mise.toml so local runs match CI.
+version: "2"
+
+linters:
+  # The "standard" set: errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  enable:
+    # Readability / maintainability oriented linters.
+    - gocritic   # opinionated checks for bugs, performance and style
+    - revive     # configurable style/naming checks (golint successor)
+    - misspell   # catches common spelling mistakes in comments/strings
+    - unconvert  # flags unnecessary type conversions
+    - gocyclo    # cyclomatic complexity (number of branches/paths)
+    - gocognit   # cognitive complexity (how hard code is to read)
+  settings:
+    gocyclo:
+      # Functions above this cyclomatic complexity are reported.
+      # 15 is the common "investigate this" line (gocyclo's own suggestion).
+      min-complexity: 15
+    gocognit:
+      # Functions above this cognitive complexity are reported.
+      # 15 is SonarSource's recommended per-function maximum.
+      # Pre-existing functions over this (createJobHandler=19,
+      # HasWorkflowDispatch=16) are grandfathered via only-new-issues in CI.
+      min-complexity: 15
+  exclusions:
+    rules:
+      # Table-driven tests are naturally branchy; complexity there is not a
+      # readability signal, so skip the complexity linters for test files.
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - gocognit
+
+formatters:
+  enable:
+    - gofumpt    # stricter gofmt; normalizes formatting AI tends to get subtly wrong

@@ -20,8 +20,14 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Go vet
-        run: go vet ./...
+      - name: Lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          # Keep in sync with mise.toml (used for local runs).
+          version: v2.12.2
+          # Only report issues introduced by the current change; existing
+          # findings are grandfathered until they are addressed separately.
+          only-new-issues: true
 
       - name: Build check
         run: go build -o /dev/null main.go

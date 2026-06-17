@@ -1,0 +1,4 @@
+# Pins dev tool versions so local runs match CI.
+# Go itself is pinned via go.mod (used by setup-go in CI).
+[tools]
+golangci-lint = "2.12.2"
